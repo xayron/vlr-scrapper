@@ -8,7 +8,11 @@ import com.vlr.scrapper.model.NewsItem
 import com.vlr.scrapper.model.Transfer
 
 import com.vlr.scrapper.model.Team
-import com.vlr.scrapper.model.RosterMember
+import com.vlr.scrapper.model.TeamPlayer
+import com.vlr.scrapper.model.TeamMatch
+import com.vlr.scrapper.model.EventPlacement
+import com.vlr.scrapper.model.PlacementResult
+import com.vlr.scrapper.model.RatingHistoryEntry
 import com.vlr.scrapper.model.Player
 import com.vlr.scrapper.model.PastTeam
 import com.vlr.scrapper.model.LiveMatch
@@ -363,32 +367,172 @@ class VlrScraper {
         val url = "$baseUrl/team/$teamId"
         val doc: Document = Jsoup.connect(url).get()
         
-        val teamName = doc.select(".wf-title").text()
-        val teamTag = doc.select(".team-header-tag").text()
-        val logo = doc.select(".wf-avatar img").attr("src").let {
+        // Extract team header information
+        val teamName = doc.select(".team-header-name h1, h1.wf-title").text()
+        val teamTag = doc.select(".team-header-tag").text().ifEmpty { null }
+        val logoUrl = doc.select(".team-header-logo img").attr("src").let {
             if (it.startsWith("//")) "https:$it" else it
-        }
+        }.ifEmpty { null }
+        val region = doc.select(".team-header-country").text().ifEmpty { null }
         
-        // Extract region from rating history or team info
-        val region = doc.select(".team-header-country").text()
-        
-        // Parse roster
-        val roster = mutableListOf<RosterMember>()
-        val rosterElements = doc.select(".wf-module-item")
-        
-        for (element in rosterElements) {
-            val playerLink = element.select("a").first() ?: continue
-            val playerUrl = baseUrl + playerLink.attr("href")
-            val playerName = element.select(".team-roster-item-name-alias").text()
-            val realName = element.select(".team-roster-item-name-real").text()
-            val role = element.select(".team-roster-item-name-role").text()
-            
-            if (playerName.isNotEmpty()) {
-                roster.add(RosterMember(playerName, realName.ifEmpty { null }, role.ifEmpty { null }, playerUrl))
+        // Extract social links
+        val socialLinks = mutableMapOf<String, String>()
+        doc.select(".team-header-links a").forEach { link ->
+            val href = link.attr("href")
+            when {
+                href.contains("twitter.com") || href.contains("x.com") -> socialLinks["twitter"] = href
+                href.contains("instagram.com") -> socialLinks["instagram"] = href
+                href.contains("youtube.com") -> socialLinks["youtube"] = href
+                href.contains("twitch.tv") -> socialLinks["twitch"] = href
+                href.contains("facebook.com") -> socialLinks["facebook"] = href
+                else -> socialLinks["website"] = href
             }
         }
         
-        return Team(teamId, teamName, teamTag, logo.ifEmpty { null }, region, roster, url)
+        // Extract total winnings - find the label "Total Winnings" and get its sibling
+        val totalWinnings = doc.select(".wf-module-label").find { 
+            it.text().trim() == "Total Winnings" 
+        }?.nextElementSibling()?.text()?.ifEmpty { null }
+        
+        // Parse roster
+        val roster = mutableListOf<TeamPlayer>()
+        val rosterElements = doc.select("a[href^='/player/']").filter { 
+            it.closest(".wf-card") != null 
+        }
+        
+        for (element in rosterElements) {
+            val playerUrl = baseUrl + element.attr("href")
+            val alias = element.select(".team-roster-item-name-alias").text()
+            val realName = element.select(".team-roster-item-name-real").text().ifEmpty { null }
+            val imageUrl = element.select(".team-roster-item-img img").attr("src").let {
+                if (it.startsWith("//")) "https:$it" else it
+            }.ifEmpty { null }
+            
+            // Extract player roles/status tags (SUB, INACTIVE, COACH, etc.)
+            val roles = element.select(".team-roster-item-name-role").map { it.text().trim() }
+            
+            if (alias.isNotEmpty()) {
+                roster.add(TeamPlayer(alias, realName, playerUrl, imageUrl, roles))
+            }
+        }
+        
+        // Parse matches (both recent and upcoming)
+        val allMatches = mutableListOf<TeamMatch>()
+        doc.select("a.m-item").forEach { matchElement ->
+            // Event name is in a div with font-weight: 700 style
+            val eventName = matchElement.select(".m-item-event div[style*=font-weight]").text().ifEmpty {
+                matchElement.select(".m-item-event .text-of").text()
+            }
+            
+            // Event stage is the remaining text in .m-item-event after the event name
+            val eventStage = matchElement.select(".m-item-event").text()
+                .replace(eventName, "").trim().ifEmpty { null }
+            
+            // Opponent is the team name that's NOT in the left position (mod-left)
+            // The right team is in .m-item-team.mod-right
+            val opponent = matchElement.select(".m-item-team.mod-right").text().trim()
+            
+            // Score - get both span elements in .m-item-result and join with ":" 
+            val scoreSpans = matchElement.select(".m-item-result span")
+            val score = if (scoreSpans.size >= 2) {
+                "${scoreSpans[0].text()}:${scoreSpans[1].text()}"
+            } else {
+                matchElement.select(".m-item-result").text().replace("\n", "").trim().ifEmpty { null }
+            }
+            
+            // Date is in the first div child of .m-item-date
+            val date = matchElement.select(".m-item-date div").first()?.text()?.trim() ?: 
+                       matchElement.select(".m-item-date").text().replace(Regex("\\s+"), " ").trim()
+            val matchUrl = baseUrl + matchElement.attr("href")
+            
+            // Match is upcoming if score doesn't contain a colon (upcoming shows countdown like "53m", recent shows "1:2")
+            val isUpcoming = score != null && !score.contains(":")
+            
+            if (eventName.isNotEmpty() && opponent.isNotEmpty()) {
+                allMatches.add(TeamMatch(eventName, eventStage, opponent, score, date, matchUrl, isUpcoming))
+            }
+        }
+        
+        // Separate into recent and upcoming
+        val recentMatches = allMatches.filter { !it.isUpcoming }
+        val upcomingMatches = allMatches.filter { it.isUpcoming }
+        
+        // Parse event placements
+        val eventPlacements = mutableListOf<EventPlacement>()
+        doc.select("a.team-event-item").forEach { eventElement ->
+            // Event name is in .text-of class
+            val eventName = eventElement.select(".text-of").text()
+            // Year/date is in the second child div
+            val year = eventElement.children().getOrNull(1)?.text() ?: ""
+            val eventUrl = baseUrl + eventElement.attr("href")
+            
+            // Parse results - look for divs with style="margin-top: 5px"
+            val results = mutableListOf<PlacementResult>()
+            eventElement.select("div[style*=margin-top]").forEach { resultDiv ->
+                // Position is in span.team-event-item-series
+                val positionSpan = resultDiv.select("span.team-event-item-series").first()
+                if (positionSpan != null) {
+                    val positionText = positionSpan.text().trim()
+                    
+                    // Prize is in another span (if present)
+                    val allSpans = resultDiv.select("span")
+                    val prizeSpan = allSpans.find { it.text().contains("$") }
+                    val prize = prizeSpan?.text()?.trim()
+                    
+                    // Parse position text which may be "Stage – Rank" or just "Rank"
+                    val parts = positionText.split("–", "-").map { it.trim() }
+                    
+                    if (parts.size >= 2) {
+                        // Has stage and rank
+                        val stage = parts[0]
+                        val rank = parts[1]
+                        results.add(PlacementResult(stage, rank, prize))
+                    } else if (parts.size == 1 && parts[0].isNotEmpty()) {
+                        // Just rank, no stage
+                        results.add(PlacementResult("", parts[0], prize))
+                    }
+                }
+            }
+            
+            if (eventName.isNotEmpty() && results.isNotEmpty()) {
+                eventPlacements.add(EventPlacement(eventName, year, results, eventUrl))
+            }
+        }
+        
+        // Parse rating history
+        val ratingHistory = mutableListOf<RatingHistoryEntry>()
+        val allRankingLinks = doc.select("a[href*='/rankings/']")
+        
+        for (link in allRankingLinks) {
+            // Rank is inside a div with class "rank-num"
+            val rankText = link.select(".rank-num").text().trim()
+            // Region is inside a div with class "rating-txt"
+            val region = link.select(".rating-txt").text().trim()
+            val rankUrl = baseUrl + link.attr("href")
+            
+            if (rankText.isNotEmpty() && region.isNotEmpty()) {
+                ratingHistory.add(RatingHistoryEntry(rankText, region, rankUrl))
+            }
+        }
+        
+        
+        
+        
+        return Team(
+            id = teamId,
+            name = teamName,
+            tag = teamTag,
+            logoUrl = logoUrl,
+            region = region,
+            socialLinks = socialLinks,
+            totalWinnings = totalWinnings,
+            roster = roster,
+            recentMatches = recentMatches,
+            upcomingMatches = upcomingMatches,
+            eventPlacements = eventPlacements,
+            ratingHistory = ratingHistory,
+            url = url
+        )
     }
     
     /**
@@ -761,6 +905,9 @@ class VlrScraper {
         val team1Logo = if (team1LogoSrc.isNotEmpty()) {
             if (team1LogoSrc.startsWith("//")) "https:$team1LogoSrc" else team1LogoSrc
         } else null
+        val team1Url = team1Link?.attr("href")?.let { 
+            if (it.startsWith("/")) "https://www.vlr.gg$it" else it 
+        }
         
         // Extract team 2 info
         val team2Link = doc.select("a.match-header-link.mod-2").first()
@@ -769,6 +916,9 @@ class VlrScraper {
         val team2Logo = if (team2LogoSrc.isNotEmpty()) {
             if (team2LogoSrc.startsWith("//")) "https:$team2LogoSrc" else team2LogoSrc
         } else null
+        val team2Url = team2Link?.attr("href")?.let { 
+            if (it.startsWith("/")) "https://www.vlr.gg$it" else it 
+        }
         
         // Extract scores from .js-spoiler container
         // Scores are in spans: winner, colon, loser (or just two spans for team1, team2)
@@ -1053,8 +1203,8 @@ class VlrScraper {
             date = date,
             time = time,
             patch = patch,
-            team1 = TeamInfo(team1Name, team1Logo, team1Score),
-            team2 = TeamInfo(team2Name, team2Logo, team2Score),
+            team1 = TeamInfo(team1Name, team1Logo, team1Url, team1Score),
+            team2 = TeamInfo(team2Name, team2Logo, team2Url, team2Score),
             status = status,
             timeUntilMatch = timeUntilMatch,
             format = format,
@@ -1071,4 +1221,6 @@ class VlrScraper {
             )
         )
     }
+    
+
 }

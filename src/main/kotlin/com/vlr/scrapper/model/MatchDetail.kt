@@ -41,6 +41,7 @@ data class MapStats(
 data class TeamInfo(
     val name: String,
     val logo: String?,
+    val link: String?,
     val score: String?
 )
 
