@@ -723,9 +723,15 @@ class VlrScraper {
     fun getMatchDetails(matchUrl: String): MatchDetail {
         val doc: Document = Jsoup.connect(matchUrl).get()
         
-        // Extract event name and subtitle
+        // Extract event name, image, and subtitle
         val eventHeader = doc.select("a.match-header-event").first()
         val eventDivs = eventHeader?.select("div") ?: emptyList()
+        
+        // Extract event image
+        val eventImageSrc = eventHeader?.select("img")?.attr("src") ?: ""
+        val eventImage = if (eventImageSrc.isNotEmpty()) {
+            if (eventImageSrc.startsWith("//")) "https:$eventImageSrc" else eventImageSrc
+        } else null
         
         // First div contains the main event name (with font-weight: 700)
         val mainEventName = eventDivs.firstOrNull()?.text()?.trim() ?: ""
@@ -738,10 +744,11 @@ class VlrScraper {
         
         val eventName = mainEventName
         
-        // Extract date and time
+        // Extract date and time from separate .moment-tz-convert elements
         val dateElem = doc.select("div.match-header-date").first()
-        val date = dateElem?.ownText()?.trim() ?: ""
-        val time = dateElem?.select("div.moment-tz-convert")?.text() ?: ""
+        val momentElements = dateElem?.select("div.moment-tz-convert") ?: emptyList()
+        val date = momentElements.getOrNull(0)?.text()?.trim() ?: ""
+        val time = momentElements.getOrNull(1)?.text()?.trim() ?: ""
         
         // Extract patch info
         val patchText = dateElem?.select("div")?.last()?.text() ?: ""
@@ -1041,6 +1048,7 @@ class VlrScraper {
         
         return MatchDetail(
             eventName = eventName,
+            eventImage = eventImage,
             matchSubtitle = matchSubtitle,
             date = date,
             time = time,

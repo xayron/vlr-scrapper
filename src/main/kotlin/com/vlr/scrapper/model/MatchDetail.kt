@@ -8,6 +8,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class MatchDetail(
     val eventName: String,
+    val eventImage: String?,
     val matchSubtitle: String,
     val date: String,
     val time: String,
