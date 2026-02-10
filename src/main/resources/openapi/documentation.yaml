@@ -1,0 +1,764 @@
+openapi: 3.0.0
+info:
+  title: VLR Scraper API
+  description: API for retrieving Valorant competitive data from VLR.gg
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Local server
+
+paths:
+  /matches/upcoming:
+    get:
+      summary: Get upcoming matches
+      responses:
+        '200':
+          description: List of upcoming matches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Match'
+  /matches/completed:
+    get:
+      summary: Get completed matches
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+          description: Page number
+      responses:
+        '200':
+          description: List of completed matches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Match'
+  /matches/details:
+    get:
+      summary: Get match details
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The VLR.gg URL of the match
+      responses:
+        '200':
+          description: Detailed match information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchDetail'
+  /live:
+    get:
+      summary: Get live matches
+      responses:
+        '200':
+          description: List of live matches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LiveMatch'
+  /matches/region/{region}:
+    get:
+      summary: Get matches by region
+      parameters:
+        - name: region
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Region code (e.g., 'na', 'eu')
+        - name: page
+          in: query
+          schema:
+            type: integer
+          description: Page number
+      responses:
+        '200':
+          description: List of matches in the region
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Match'
+  /matches/event/{eventId}:
+    get:
+      summary: Get matches by event
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Event ID
+        - name: page
+          in: query
+          schema:
+            type: integer
+          description: Page number
+      responses:
+        '200':
+          description: List of matches in the event
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Match'
+  /team/{id}:
+    get:
+      summary: Get team details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Team ID
+      responses:
+        '200':
+          description: Detailed team information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Team'
+  /player/{id}:
+    get:
+      summary: Get player details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Player ID
+      responses:
+        '200':
+          description: Detailed player information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Player'
+  /news:
+    get:
+      summary: Get latest news
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+          description: Page number
+      responses:
+        '200':
+          description: List of news items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NewsItem'
+  /transfers:
+    get:
+      summary: Get recent transfers
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+          description: Page number
+      responses:
+        '200':
+          description: List of transfers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Transfer'
+  /events:
+    get:
+      summary: Get events
+      responses:
+        '200':
+          description: List of events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Event'
+  /event/{id}:
+    get:
+      summary: Get event details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Event ID
+      responses:
+        '200':
+          description: Detailed event information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventDetail'
+  /rankings:
+    get:
+      summary: Get global team rankings
+      responses:
+        '200':
+          description: List of team rankings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TeamRanking'
+  /rankings/region/{region}:
+    get:
+      summary: Get team rankings by region
+      parameters:
+        - name: region
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Region code (e.g., 'na', 'eu')
+      responses:
+        '200':
+          description: List of team rankings in the region
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TeamRanking'
+  /stats:
+    get:
+      summary: Get player statistics
+      responses:
+        '200':
+          description: List of player statistics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlayerStat'
+  /streams:
+    get:
+      summary: Get match streams
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Match URL
+      responses:
+        '200':
+          description: List of streams for the match
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StreamLink'
+  /search/teams:
+    get:
+      summary: Search teams
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search query
+      responses:
+        '200':
+          description: List of matching teams
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TeamSearchResult'
+  /search/players:
+    get:
+      summary: Search players
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search query
+      responses:
+        '200':
+          description: List of matching players
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlayerSearchResult'
+
+components:
+  schemas:
+    Match:
+      type: object
+      properties:
+        team1:
+          type: string
+        team2:
+          type: string
+        time:
+          type: string
+        event:
+          type: string
+        score1:
+          type: string
+          nullable: true
+        score2:
+          type: string
+          nullable: true
+        url:
+          type: string
+        team1CountryFlag:
+          type: string
+          nullable: true
+        team2CountryFlag:
+          type: string
+          nullable: true
+        eventIcon:
+          type: string
+          nullable: true
+    MatchDetail:
+      type: object
+      properties:
+        team1:
+          type: string
+        team2:
+          type: string
+        score1:
+          type: string
+        score2:
+          type: string
+        time:
+          type: string
+        event:
+          type: string
+        maps:
+          type: array
+          items:
+            $ref: '#/components/schemas/MapStats'
+    MapStats:
+      type: object
+      properties:
+        mapName:
+          type: string
+        team1Score:
+          type: string
+        team2Score:
+          type: string
+        playerStats:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlayerStats'
+    PlayerStats:
+      type: object
+      properties:
+        name:
+          type: string
+        team:
+          type: string
+        agent:
+          type: string
+        rating:
+          type: string
+        acs:
+          type: string
+        kills:
+          type: string
+        deaths:
+          type: string
+        assists:
+          type: string
+    LiveMatch:
+      type: object
+      properties:
+        team1:
+          type: string
+        team2:
+          type: string
+        score1:
+          type: string
+        score2:
+          type: string
+        event:
+          type: string
+        status:
+          type: string
+        team1CountryFlag:
+          type: string
+          nullable: true
+        team2CountryFlag:
+          type: string
+          nullable: true
+        eventIcon:
+          type: string
+          nullable: true
+        url:
+          type: string
+    Team:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        tag:
+          type: string
+          nullable: true
+        logoUrl:
+          type: string
+          nullable: true
+        region:
+          type: string
+          nullable: true
+        socialLinks:
+          type: object
+          additionalProperties:
+            type: string
+        totalWinnings:
+          type: string
+          nullable: true
+        roster:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamPlayer'
+        recentMatches:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamMatch'
+        upcomingMatches:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamMatch'
+        eventPlacements:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventPlacement'
+        ratingHistory:
+          type: array
+          items:
+            $ref: '#/components/schemas/RatingHistoryEntry'
+        formRating:
+          type: array
+          items:
+            $ref: '#/components/schemas/FormRating'
+        rankingHistory:
+          type: array
+          items:
+            $ref: '#/components/schemas/RankingHistoryEntry'
+        url:
+          type: string
+    TeamPlayer:
+      type: object
+      properties:
+        alias:
+          type: string
+        realName:
+          type: string
+          nullable: true
+        url:
+          type: string
+        imageUrl:
+          type: string
+          nullable: true
+        roles:
+          type: array
+          items:
+            type: string
+    TeamMatch:
+      type: object
+      properties:
+        eventName:
+          type: string
+        eventStage:
+          type: string
+          nullable: true
+        opponent:
+          type: string
+        score:
+          type: string
+          nullable: true
+        date:
+          type: string
+        url:
+          type: string
+        isUpcoming:
+          type: boolean
+    EventPlacement:
+      type: object
+      properties:
+        eventName:
+          type: string
+        year:
+          type: string
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlacementResult'
+        url:
+          type: string
+    PlacementResult:
+      type: object
+      properties:
+        stage:
+          type: string
+        rank:
+          type: string
+        prize:
+          type: string
+          nullable: true
+    RatingHistoryEntry:
+      type: object
+      properties:
+        rank:
+          type: string
+        region:
+          type: string
+        url:
+          type: string
+    FormRating:
+      type: object
+      properties:
+        date:
+          type: string
+        opponent:
+          type: string
+        event:
+          type: string
+        result:
+          type: string
+        currentRating:
+          type: integer
+        opponentRating:
+          type: integer
+        coreId:
+          type: string
+    RankingHistoryEntry:
+      type: object
+      properties:
+        date:
+          type: string
+        event:
+          type: string
+        rank:
+          type: string
+        coreId:
+          type: string
+    Player:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        realName:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+        countryFlag:
+          type: string
+          nullable: true
+        team:
+          type: string
+          nullable: true
+        agents:
+          type: array
+          items:
+            type: string
+        pastTeams:
+          type: array
+          items:
+            $ref: '#/components/schemas/PastTeam'
+        url:
+          type: string
+    PastTeam:
+      type: object
+      properties:
+        name:
+          type: string
+        period:
+          type: string
+          nullable: true
+        url:
+          type: string
+    NewsItem:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        author:
+          type: string
+        date:
+          type: string
+        url:
+          type: string
+    Transfer:
+      type: object
+      properties:
+        player:
+          type: string
+        fromTeam:
+          type: string
+        toTeam:
+          type: string
+        date:
+          type: string
+        url:
+          type: string
+    Event:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+        dates:
+          type: string
+        region:
+          type: string
+        prizePool:
+          type: string
+        url:
+          type: string
+    EventDetail:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        dates:
+          type: string
+        prizePool:
+          type: string
+          nullable: true
+        teams:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventTeam'
+        location:
+          type: string
+          nullable: true
+        format:
+          type: string
+          nullable: true
+        url:
+          type: string
+    EventTeam:
+      type: object
+      properties:
+        name:
+          type: string
+        tag:
+          type: string
+          nullable: true
+        standing:
+          type: string
+          nullable: true
+        url:
+          type: string
+    TeamRanking:
+      type: object
+      properties:
+        rank:
+          type: string
+        teamName:
+          type: string
+        region:
+          type: string
+        points:
+          type: string
+        url:
+          type: string
+    PlayerStat:
+      type: object
+      properties:
+        player:
+          type: string
+        team:
+          type: string
+        agents:
+          type: array
+          items:
+            type: string
+        rating:
+          type: string
+        acs:
+          type: string
+        kd:
+          type: string
+    TeamSearchResult:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        tag:
+          type: string
+        region:
+          type: string
+        logo:
+          type: string
+          nullable: true
+        url:
+          type: string
+    PlayerSearchResult:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        realName:
+          type: string
+          nullable: true
+        team:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+        url:
+          type: string
+    StreamLink:
+      type: object
+      properties:
+        platform:
+          type: string
+        url:
+          type: string
+        language:
+          type: string
+          nullable: true

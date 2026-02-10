@@ -245,7 +245,7 @@ class VlrScraper {
         val doc: Document = Jsoup.connect(url).get()
         val newsList = mutableListOf<NewsItem>()
         
-        val items = doc.select("a").filter { 
+        val items = doc.select("a").toList().filter { 
             it.attr("href").matches(Regex("/\\d+/.*")) && 
             !it.attr("href").contains("/match/") &&
             !it.attr("href").contains("/team/") &&
@@ -398,7 +398,7 @@ class VlrScraper {
         
         // Parse roster
         val roster = mutableListOf<TeamPlayer>()
-        val rosterElements = doc.select("a[href^='/player/']").filter { 
+        val rosterElements = doc.select("a[href^='/player/']").toList().filter { 
             it.closest(".wf-card") != null 
         }
         

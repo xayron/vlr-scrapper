@@ -1,6 +1,9 @@
 package com.vlr.scrapper
 
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
 import io.ktor.serialization.kotlinx.json.*
+import io.ktor.server.plugins.swagger.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
@@ -8,6 +11,7 @@ import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.json.Json
+import io.ktor.server.plugins.cors.routing.*
 
 /**
  * Main entry point for the VLR Scraper API server
@@ -36,11 +40,20 @@ fun Application.module() {
         })
     }
 
+    install(CORS) {
+        allowMethod(HttpMethod.Options)
+        allowMethod(HttpMethod.Put)
+        allowHeader(HttpHeaders.Authorization)
+        allowHost("*")
+    }
+
     val scraper = VlrScraper()
 
     routing {
+        swaggerUI(path = "swagger", swaggerFile = "openapi/documentation.yaml")
+
         get("/") {
-            call.respondText("VLR Scraper API is running!")
+            call.respondText("VLR Scraper API is running! Check /swagger for documentation.")
         }
 
         // ============ MATCH ENDPOINTS ============
