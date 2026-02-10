@@ -13,6 +13,8 @@ import com.vlr.scrapper.model.TeamMatch
 import com.vlr.scrapper.model.EventPlacement
 import com.vlr.scrapper.model.PlacementResult
 import com.vlr.scrapper.model.RatingHistoryEntry
+import com.vlr.scrapper.model.FormRating
+import com.vlr.scrapper.model.RankingHistoryEntry
 import com.vlr.scrapper.model.Player
 import com.vlr.scrapper.model.PastTeam
 import com.vlr.scrapper.model.LiveMatch
@@ -515,8 +517,72 @@ class VlrScraper {
             }
         }
         
+        // Parse detailed rating history (form rating and ranking history)
+        val formRating = mutableListOf<FormRating>()
+        val rankingHistory = mutableListOf<RankingHistoryEntry>()
         
-        
+        // Iterate through all team core blocks to capture history for different rosters
+        doc.select(".team-core-block").forEach { coreBlock ->
+            val coreId = coreBlock.attr("data-core-id")
+            
+            val tips = coreBlock.select("div.tip")
+            for (tip in tips) {
+                if (tip.hasAttr("data-pt-id")) {
+                    // Date is in the first div
+                    val date = if (tip.childrenSize() > 0) tip.child(0).text().trim() else ""
+                    
+                    // Opponent is in .tip-title (or used for Rank in normalization)
+                    val opponentTitle = tip.selectFirst(".tip-title")
+                    val opponent = opponentTitle?.text()?.replace("vs.", "")?.trim() ?: ""
+                    
+                    // Event is usually the div between title and result
+                    var event = ""
+                    val eventDiv = tip.children().find { 
+                        it != tip.child(0) && 
+                        !it.hasClass("tip-title") && 
+                        !it.hasClass("result")
+                    }
+                    event = eventDiv?.text()?.trim() ?: ""
+                    
+                    // Result and scores
+                    val resultDiv = tip.selectFirst(".result")
+                    val resultSpan = resultDiv?.selectFirst("span")
+                    val resultStatus = resultSpan?.text()?.trim() ?: "" // "Win" or "Loss"
+                    
+                    var currentRating = 0
+                    var opponentRating = 0
+                    
+                    if (resultDiv != null) {
+                        val scoreText = resultDiv.ownText()
+                        val numbers = Regex("\\d+").findAll(scoreText).map { it.value.toInt() }.toList()
+                        if (numbers.size >= 2) {
+                            currentRating = numbers[0]
+                            opponentRating = numbers[1]
+                        }
+                    }
+                    
+                    if (date.isNotEmpty()) {
+                        // Check if it's a rank update
+                        val isRankUpdate = resultStatus.isEmpty() && opponent.startsWith("#")
+                        
+                        if (isRankUpdate) {
+                            // Mapping for rank updates:
+                            // Date field holds Region (e.g. "North America")
+                            // Event field holds Date (e.g. "June 2020")
+                            // Opponent field holds Rank (e.g. "#12")
+                            
+                            val actualDate = event
+                            val rank = opponent
+                            
+                            rankingHistory.add(RankingHistoryEntry(actualDate, "Rank Update", rank, coreId))
+                        } else {
+                            // Standard match update
+                            formRating.add(FormRating(date, opponent, event, resultStatus, currentRating, opponentRating, coreId))
+                        }
+                    }
+                }
+            }
+        }
         
         return Team(
             id = teamId,
@@ -531,6 +597,8 @@ class VlrScraper {
             upcomingMatches = upcomingMatches,
             eventPlacements = eventPlacements,
             ratingHistory = ratingHistory,
+            formRating = formRating,
+            rankingHistory = rankingHistory,
             url = url
         )
     }

@@ -33,5 +33,7 @@ data class Team(
     val upcomingMatches: List<TeamMatch>,
     val eventPlacements: List<EventPlacement>,
     val ratingHistory: List<RatingHistoryEntry>,
+    val formRating: List<FormRating> = emptyList(),
+    val rankingHistory: List<RankingHistoryEntry> = emptyList(),
     val url: String
 )
