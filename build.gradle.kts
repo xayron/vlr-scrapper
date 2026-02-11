@@ -12,7 +12,7 @@ repositories {
     mavenCentral()
 }
 
-val ktorVersion = "3.4.0"
+val ktorVersion = "3.4.0" 
 
 dependencies {
     implementation("org.jsoup:jsoup:1.17.2")

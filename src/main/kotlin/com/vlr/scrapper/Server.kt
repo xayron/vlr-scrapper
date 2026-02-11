@@ -12,6 +12,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.json.Json
 import io.ktor.server.plugins.cors.routing.*
+import io.ktor.http.HttpStatusCode
 
 /**
  * Main entry point for the VLR Scraper API server
@@ -109,7 +110,21 @@ fun Application.module() {
 
         // ============ TRANSFERS ENDPOINT ============
 
-        get("/transfers") {
+        get("/news/details") {
+        val url = call.request.queryParameters["url"]
+        if (url == null) {
+            call.respond(HttpStatusCode.BadRequest, "Missing 'url' parameter")
+            return@get
+        }
+        try {
+            val newsDetail = scraper.getNewsDetail(url)
+            call.respond(newsDetail)
+        } catch (e: Exception) {
+            call.respond(HttpStatusCode.InternalServerError, "Error scraping news detail: ${e.message}")
+        }
+    }
+
+    get("/transfers") {
             try {
                 val page = call.request.queryParameters["page"]?.toIntOrNull() ?: 1
                 val transfers = scraper.getTransfers(page)

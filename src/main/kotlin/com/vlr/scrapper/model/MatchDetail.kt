@@ -88,9 +88,11 @@ data class MapStatsData(
 data class Round(
     val roundNum: String,
     val score: String,           // e.g., "1-0", "7-5"
-    val winningTeam: String,     // Team name
-    val winningSide: String,     // "T" or "CT"
-    val winType: String          // "elimination", "bomb_exploded", "bomb_defused", "time_ran_out"
+    val winner: String,          // "team1" or "team2"
+    val t: String,               // "team1" or "team2"
+    val ct: String,              // "team1" or "team2"
+    val winType: String,         // "elimination", "bomb_exploded", "bomb_defused", "time_ran_out"
+    val winIconUrl: String?      // URL to the win type icon
 )
 
 /**

@@ -17,6 +17,7 @@ import com.vlr.scrapper.model.FormRating
 import com.vlr.scrapper.model.RankingHistoryEntry
 import com.vlr.scrapper.model.Player
 import com.vlr.scrapper.model.PastTeam
+import com.vlr.scrapper.model.RegionRanking
 import com.vlr.scrapper.model.LiveMatch
 import com.vlr.scrapper.model.EventDetail
 import com.vlr.scrapper.model.EventTeam
@@ -89,6 +90,97 @@ class VlrScraper {
     }
 
     /**
+     * Retrieves detailed news article and comments thread
+     *
+     * @param urlStr Full URL of the news article
+     * @return NewsDetail object containing article content and comments
+     */
+    fun getNewsDetail(urlStr: String): com.vlr.scrapper.model.NewsDetail {
+        val doc: Document = Jsoup.connect(urlStr)
+            .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            .header("Accept-Language", "en-US,en;q=0.9")
+            .get()
+
+        // Metadata Parsing
+        val title = doc.select(".mod-article-title").text().trim()
+        val author = doc.select(".article-meta-author").text().trim()
+        val dateElem = doc.select(".article-meta .js-date-toggle")
+        val date = dateElem.attr("title").ifEmpty { dateElem.text().trim() }
+        
+        val finalTitle = if (title.isNotEmpty()) title else doc.select("h1").first()?.text() ?: ""
+        val finalAuthor = author.ifEmpty { "Unknown" }
+        val finalDate = date.ifEmpty { "Unknown" }
+
+        println("Scraping News: $finalTitle ($finalAuthor, $finalDate)")
+
+        // Content Parsing
+        val contentElement = doc.selectFirst(".article-body")
+        contentElement?.select("style, script")?.remove()
+        contentElement?.select("br")?.append("\\n")
+        contentElement?.select("p")?.prepend("\\n\\n")
+        val content = contentElement?.text()?.trim() ?: ""
+
+        // Comment Parsing (Linear to Tree)
+        class MutableComment(
+            val author: String,
+            val content: String,
+            val url: String?,
+            val children: MutableList<MutableComment> = mutableListOf()
+        ) {
+            fun toThreadComment(): com.vlr.scrapper.model.ThreadComment {
+               return com.vlr.scrapper.model.ThreadComment(this.author, this.content, url, children.map { it.toThreadComment() })
+            }
+        }
+
+        val roots = mutableListOf<MutableComment>()
+        val lastAtDepth = mutableMapOf<Int, MutableComment>()
+
+        // Try broader selector for posts
+        val postElements = doc.select(".wf-card.post")
+        
+        for ((index, element) in postElements.withIndex()) {
+            val depthClass = element.classNames().find { it.startsWith("depth-") }
+            val depth = depthClass?.substringAfter("depth-")?.toIntOrNull() ?: 0
+            
+            val postAuthor = element.select(".post-header-author").text().trim()
+            val postContent = element.select(".post-body").text().trim()
+            
+            // Generate link
+            val postLink = element.select(".post-footer .link").attr("href")
+            val postUrl = if (postLink.isNotEmpty()) "$baseUrl$postLink" else null
+            
+            val current = MutableComment(postAuthor, postContent, postUrl)
+            lastAtDepth[depth] = current
+            
+            if (depth == 0) {
+                roots.add(current)
+            } else {
+                // Find parent at depth - 1
+                val parent = lastAtDepth[depth - 1]
+                if (parent != null) {
+                    parent.children.add(current)
+                } else {
+                    // Fallback: add to nearest upper parent or root
+                    var p: MutableComment? = null
+                    for (d in depth - 1 downTo 0) {
+                         if (lastAtDepth.containsKey(d)) {
+                             p = lastAtDepth[d]
+                             break
+                         }
+                    }
+                    if (p != null) {
+                        p.children.add(current)
+                    } else {
+                        roots.add(current)
+                    }
+                }
+            }
+        }
+
+        return com.vlr.scrapper.model.NewsDetail(finalTitle, finalAuthor, finalDate, content, urlStr, roots.map { it.toThreadComment() })
+    }
+
+    /**
      * Retrieves completed matches for a specific page
      *
      * @param page Page number to fetch (default: 1)
@@ -148,13 +240,32 @@ class VlrScraper {
     }
     
     /**
-     * Retrieves global team rankings
+     * Retrieves global team rankings grouped by region
      *
-     * @return List of team rankings
+     * @return List of regional rankings
      */
-    fun getGlobalRankings(): List<TeamRanking> {
-        val doc: Document = Jsoup.connect("$baseUrl/rankings").get()
-        return getRankings(doc)
+    fun getGlobalRankings(): List<RegionRanking> {
+        val regions = listOf(
+            "north-america" to "North America",
+            "europe" to "Europe",
+            "brazil" to "Brazil",
+            "asia-pacific" to "Asia-Pacific",
+            "korea" to "Korea",
+            "china" to "China",
+            "japan" to "Japan",
+            "latin-america" to "Latin America"
+        )
+        
+        return regions.map { (slug, name) ->
+            try {
+                val rankings = getRankingsByRegion(slug)
+                RegionRanking(name, rankings)
+            } catch (e: Exception) {
+                // Log the error or handle it as appropriate
+                System.err.println("Error fetching rankings for region $name: ${e.message}")
+                RegionRanking(name, emptyList())
+            }
+        }
     }
     
     /**
@@ -945,14 +1056,18 @@ class VlrScraper {
             if (eventImageSrc.startsWith("//")) "https:$eventImageSrc" else eventImageSrc
         } else null
         
-        // First div contains the main event name (with font-weight: 700)
-        val mainEventName = eventDivs.firstOrNull()?.text()?.trim() ?: ""
-        
         // Extract series info from .match-header-event-series
         val seriesInfo = eventHeader?.select(".match-header-event-series")?.text()?.trim() ?: ""
         
         // Use only series info for subtitle (not the note/status like FINAL, LIVE, etc.)
         val matchSubtitle = seriesInfo
+        
+        // First div contains the main event name (with font-weight: 700)
+        // We select the specific inner div or exclude the subtitle to prevent duplication
+        val mainEventName = eventHeader?.selectFirst("div[style*='font-weight: 700']")?.text()?.trim()
+            ?: eventHeader?.selectFirst("div > div")?.text()?.trim()
+            ?: eventDivs.firstOrNull()?.text()?.replace(seriesInfo, "")?.trim()
+            ?: ""
         
         val eventName = mainEventName
         
@@ -1195,26 +1310,44 @@ class VlrScraper {
                         val roundNum = roundCol.select(".rnd-num").text()
                         val score = roundCol.attr("title")
                         
-                        // Find winning team and side
                         val winSq = roundCol.select(".rnd-sq.mod-win").first()
                         val squares = roundCol.select(".rnd-sq")
                         val winningTeamIndex = squares.indexOfFirst { it.hasClass("mod-win") }
-                        
-                        // Convert index to team name
-                        val winningTeamName = when (winningTeamIndex) {
-                            0 -> team1Name
-                            1 -> team2Name
+
+                        // Find winning team and side
+                        // Determine winner
+                        val winner = when (winningTeamIndex) {
+                            0 -> "team1"
+                            1 -> "team2"
                             else -> "unknown"
                         }
                         
                         val winningSide = when {
-                            winSq?.hasClass("mod-t") == true -> "T"
-                            winSq?.hasClass("mod-ct") == true -> "CT"
+                            winSq?.hasClass("mod-t") == true -> "t"
+                            winSq?.hasClass("mod-ct") == true -> "ct"
                             else -> "unknown"
+                        }
+                        
+                        // Determine sides for both teams
+                        // If team1 won on T, team1 is T, team2 is CT
+                        // If team2 won on CT, team1 is T, team2 is CT
+                        val (tTeam, ctTeam) = when {
+                            winner == "team1" && winningSide == "t" -> "team1" to "team2"
+                            winner == "team1" && winningSide == "ct" -> "team2" to "team1"
+                            winner == "team2" && winningSide == "t" -> "team2" to "team1"
+                            winner == "team2" && winningSide == "ct" -> "team1" to "team2"
+                            else -> "unknown" to "unknown"
                         }
                         
                         // Extract win type from icon
                         val winIcon = winSq?.select("img")?.attr("src") ?: ""
+                        val winIconUrl = when {
+                            winIcon.isEmpty() -> null
+                            winIcon.startsWith("//") -> "https:$winIcon"
+                            winIcon.startsWith("/") -> "https://www.vlr.gg$winIcon"
+                            else -> winIcon
+                        }
+                        
                         val winType = when {
                             winIcon.contains("elim") -> "elimination"
                             winIcon.contains("boom") -> "bomb_exploded"
@@ -1224,7 +1357,7 @@ class VlrScraper {
                         }
                         
                         if (roundNum.isNotEmpty() && winningTeamIndex >= 0) {
-                            rounds.add(Round(roundNum, score, winningTeamName, winningSide, winType))
+                            rounds.add(Round(roundNum, score, winner, tTeam, ctTeam, winType, winIconUrl))
                         }
                     }
                 }

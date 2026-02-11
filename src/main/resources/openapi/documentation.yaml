@@ -167,6 +167,23 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/NewsItem'
+  /news/details:
+    get:
+      summary: Get news details
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The VLR.gg URL of the news article
+      responses:
+        '200':
+          description: Detailed news information and comments
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsDetail'
   /transfers:
     get:
       summary: Get recent transfers
@@ -211,21 +228,19 @@ paths:
         '200':
           description: Detailed event information
           content:
-            application/json:
-              schema:
                 $ref: '#/components/schemas/EventDetail'
   /rankings:
     get:
-      summary: Get global team rankings
+      summary: Get global team rankings grouped by region
       responses:
-        '200':
-          description: List of team rankings
+        "200":
+          description: Successful operation
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/TeamRanking'
+                  $ref: '#/components/schemas/RegionRanking'
   /rankings/region/{region}:
     get:
       summary: Get team rankings by region
@@ -363,20 +378,27 @@ components:
         maps:
           type: array
           items:
-            $ref: '#/components/schemas/MapStats'
-    MapStats:
+            $ref: '#/components/schemas/MapResult'
+        mapStats:
+          $ref: '#/components/schemas/MapStats'
+    MapResult:
       type: object
       properties:
         mapName:
           type: string
         team1Score:
-          type: string
+          $ref: '#/components/schemas/TeamScore'
         team2Score:
+          $ref: '#/components/schemas/TeamScore'
+        winner:
           type: string
-        playerStats:
-          type: array
-          items:
-            $ref: '#/components/schemas/PlayerStats'
+          nullable: true
+        pickedBy:
+          type: string
+          nullable: true
+        duration:
+          type: string
+          nullable: true
     PlayerStats:
       type: object
       properties:
@@ -396,6 +418,15 @@ components:
           type: string
         assists:
           type: string
+    RegionRanking:
+      type: object
+      properties:
+        region:
+          type: string
+        rankings:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamRanking'
     LiveMatch:
       type: object
       properties:
@@ -760,5 +791,164 @@ components:
         url:
           type: string
         language:
+          type: string
+          nullable: true
+    NewsDetail:
+      type: object
+      description: Detailed information about a news article including content and comments
+      properties:
+        title:
+          type: string
+          description: The title of the article
+        author:
+          type: string
+          description: The author of the article
+        date:
+          type: string
+          description: The publication date and time
+        content:
+          type: string
+          description: The full text content of the article
+        url:
+          type: string
+          description: The VLR.gg URL of the article
+        comments:
+          type: array
+          description: The comment thread associated with the article
+          items:
+            $ref: '#/components/schemas/ThreadComment'
+      example:
+        title: "ENVY benches Inspire"
+        author: "jenopelle"
+        date: "Feb 6, 2026 at 09:46 IST"
+        content: "ENVY has announced that Hunter 'Inspire' Schline has been moved to the team's reserve roster..."
+        url: "https://www.vlr.gg/617384/envy-benches-inspire"
+        comments:
+          - author: "TheFumbler"
+            content: "L move #JusticeforInspire"
+            url: "https://www.vlr.gg/post/6139663/envy-benches-inspire"
+            children: []
+    ThreadComment:
+      type: object
+      description: A comment in a news thread, properly nested
+      properties:
+        author:
+          type: string
+          description: The author of the comment
+        content:
+          type: string
+          description: The text content of the comment
+        url:
+          type: string
+          nullable: true
+          description: The URL to the specific comment
+        children:
+          type: array
+          description: Nested replies to this comment
+          items:
+            $ref: '#/components/schemas/ThreadComment'
+    MapStats:
+      type: object
+      properties:
+        allMaps:
+          $ref: '#/components/schemas/MapStatsData'
+        map1:
+          $ref: '#/components/schemas/MapStatsData'
+        map2:
+          $ref: '#/components/schemas/MapStatsData'
+        map3:
+          $ref: '#/components/schemas/MapStatsData'
+        map4:
+          $ref: '#/components/schemas/MapStatsData'
+        map5:
+          $ref: '#/components/schemas/MapStatsData'
+    MapStatsData:
+      type: object
+      properties:
+        mapName:
+          type: string
+        playerStats:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlayerMatchStat'
+        rounds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Round'
+    PlayerMatchStat:
+      type: object
+      properties:
+        playerName:
+          type: string
+        team:
+          type: string
+        agents:
+          type: array
+          items:
+            type: string
+        rating:
+          $ref: '#/components/schemas/SideStat'
+        acs:
+          $ref: '#/components/schemas/SideStat'
+        kills:
+          $ref: '#/components/schemas/SideStat'
+        deaths:
+          $ref: '#/components/schemas/SideStat'
+        assists:
+          $ref: '#/components/schemas/SideStat'
+        kdDiff:
+          $ref: '#/components/schemas/SideStat'
+        kast:
+          $ref: '#/components/schemas/SideStat'
+        adr:
+          $ref: '#/components/schemas/SideStat'
+        hs:
+          $ref: '#/components/schemas/SideStat'
+        fk:
+          $ref: '#/components/schemas/SideStat'
+        fd:
+          $ref: '#/components/schemas/SideStat'
+        fkDiff:
+          $ref: '#/components/schemas/SideStat'
+    SideStat:
+      type: object
+      properties:
+        all:
+          type: string
+        attack:
+          type: string
+        defend:
+          type: string
+    Round:
+      type: object
+      properties:
+        roundNum:
+          type: string
+        score:
+          type: string
+        winner:
+          type: string
+          description: "team1" or "team2"
+        t:
+          type: string
+          description: "team1" or "team2"
+        ct:
+          type: string
+          description: "team1" or "team2"
+        winType:
+          type: string
+        winIconUrl:
+          type: string
+          nullable: true
+          description: URL to the win type icon
+    TeamScore:
+      type: object
+      properties:
+        total:
+          type: string
+        attack:
+          type: string
+          nullable: true
+        defend:
           type: string
           nullable: true
