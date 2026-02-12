@@ -228,19 +228,21 @@ paths:
         '200':
           description: Detailed event information
           content:
+            application/json:
+              schema:
                 $ref: '#/components/schemas/EventDetail'
   /rankings:
     get:
-      summary: Get global team rankings grouped by region
+      summary: Get global team rankings
       responses:
-        "200":
-          description: Successful operation
+        '200':
+          description: List of team rankings
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/RegionRanking'
+                  $ref: '#/components/schemas/RegionRankings'
   /rankings/region/{region}:
     get:
       summary: Get team rankings by region
@@ -418,15 +420,6 @@ components:
           type: string
         assists:
           type: string
-    RegionRanking:
-      type: object
-      properties:
-        region:
-          type: string
-        rankings:
-          type: array
-          items:
-            $ref: '#/components/schemas/TeamRanking'
     LiveMatch:
       type: object
       properties:
@@ -670,6 +663,8 @@ components:
     Event:
       type: object
       properties:
+        id:
+          type: string
         name:
           type: string
         status:
@@ -680,6 +675,9 @@ components:
           type: string
         prizePool:
           type: string
+        image:
+          type: string
+          nullable: true
         url:
           type: string
     EventDetail:
@@ -698,12 +696,21 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/EventTeam'
+        brackets:
+          type: array
+          description: Bracket data grouped by paths like Upper/Lower/Middle
+          items:
+            $ref: '#/components/schemas/EventBracketGroup'
         location:
           type: string
           nullable: true
         format:
           type: string
           nullable: true
+        logoUrl:
+          type: string
+          nullable: true
+          description: URL to the event logo/image
         url:
           type: string
     EventTeam:
@@ -717,8 +724,56 @@ components:
         standing:
           type: string
           nullable: true
+        logoUrl:
+          type: string
+          nullable: true
+          description: URL to the team logo
         url:
           type: string
+    EventBracketGroup:
+      type: object
+      properties:
+        name:
+          type: string
+        rounds:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventBracketRound'
+    EventBracketRound:
+      type: object
+      properties:
+        name:
+          type: string
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventBracketMatch'
+    EventBracketMatch:
+      type: object
+      properties:
+        team1:
+          $ref: '#/components/schemas/EventBracketTeam'
+        team2:
+          $ref: '#/components/schemas/EventBracketTeam'
+        status:
+          type: string
+          nullable: true
+        url:
+          type: string
+          nullable: true
+    EventBracketTeam:
+      type: object
+      properties:
+        name:
+          type: string
+        score:
+          type: string
+          nullable: true
+        isWinner:
+          type: boolean
+        logoUrl:
+          type: string
+          nullable: true
     TeamRanking:
       type: object
       properties:
@@ -732,6 +787,10 @@ components:
           type: string
         url:
           type: string
+        logoUrl:
+          type: string
+          nullable: true
+          description: URL to the team logo
     PlayerStat:
       type: object
       properties:
@@ -928,19 +987,28 @@ components:
           type: string
         winner:
           type: string
-          description: "team1" or "team2"
+          description: '"team1" or "team2"'
         t:
           type: string
-          description: "team1" or "team2"
+          description: '"team1" or "team2"'
         ct:
           type: string
-          description: "team1" or "team2"
+          description: '"team1" or "team2"'
         winType:
           type: string
         winIconUrl:
           type: string
           nullable: true
           description: URL to the win type icon
+    RegionRankings:
+      type: object
+      properties:
+        region:
+          type: string
+        rankings:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamRanking'
     TeamScore:
       type: object
       properties:

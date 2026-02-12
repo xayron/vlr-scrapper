@@ -4,6 +4,7 @@ import com.vlr.scrapper.model.Match
 import com.vlr.scrapper.model.Event
 import com.vlr.scrapper.model.TeamRanking
 import com.vlr.scrapper.model.PlayerStat
+import com.vlr.scrapper.model.RegionRankings
 import com.vlr.scrapper.model.NewsItem
 import com.vlr.scrapper.model.Transfer
 
@@ -17,10 +18,13 @@ import com.vlr.scrapper.model.FormRating
 import com.vlr.scrapper.model.RankingHistoryEntry
 import com.vlr.scrapper.model.Player
 import com.vlr.scrapper.model.PastTeam
-import com.vlr.scrapper.model.RegionRanking
 import com.vlr.scrapper.model.LiveMatch
 import com.vlr.scrapper.model.EventDetail
 import com.vlr.scrapper.model.EventTeam
+import com.vlr.scrapper.model.EventBracketGroup
+import com.vlr.scrapper.model.EventBracketRound
+import com.vlr.scrapper.model.EventBracketMatch
+import com.vlr.scrapper.model.EventBracketTeam
 import com.vlr.scrapper.model.TeamSearchResult
 import com.vlr.scrapper.model.PlayerSearchResult
 import com.vlr.scrapper.model.StreamLink
@@ -204,6 +208,7 @@ class VlrScraper {
         val items = doc.select("a.event-item")
         for (item in items) {
              val url = baseUrl + item.attr("href")
+             val eventId = Regex("/event/(\\d+)").find(item.attr("href"))?.groupValues?.getOrNull(1) ?: ""
              val name = item.select(".event-item-title").text()
              
              // Extract status from class like "event-item-desc-item-status mod-ongoing"
@@ -234,39 +239,23 @@ class VlrScraper {
                  if (imageSrc.startsWith("//")) "https:$imageSrc" else imageSrc
              } else null
              
-             events.add(Event(name, status, dates, region, prizePool, image, url))
+             events.add(
+                Event(
+                    id = eventId,
+                    name = name,
+                    status = status,
+                    dates = dates,
+                    region = region,
+                    prizePool = prizePool,
+                    image = image,
+                    url = url
+                )
+            )
         }
         return events
     }
     
-    /**
-     * Retrieves global team rankings grouped by region
-     *
-     * @return List of regional rankings
-     */
-    fun getGlobalRankings(): List<RegionRanking> {
-        val regions = listOf(
-            "north-america" to "North America",
-            "europe" to "Europe",
-            "brazil" to "Brazil",
-            "asia-pacific" to "Asia-Pacific",
-            "korea" to "Korea",
-            "china" to "China",
-            "japan" to "Japan",
-            "latin-america" to "Latin America"
-        )
-        
-        return regions.map { (slug, name) ->
-            try {
-                val rankings = getRankingsByRegion(slug)
-                RegionRanking(name, rankings)
-            } catch (e: Exception) {
-                // Log the error or handle it as appropriate
-                System.err.println("Error fetching rankings for region $name: ${e.message}")
-                RegionRanking(name, emptyList())
-            }
-        }
-    }
+
     
     /**
      * Retrieves player statistics
@@ -807,36 +796,268 @@ class VlrScraper {
      * @return Event details including participating teams
      */
     fun getEventDetail(eventId: String): EventDetail {
-        val url = "$baseUrl/event/$eventId"
-        val doc: Document = Jsoup.connect(url).get()
-        
-        val eventName = doc.select(".wf-title").text()
-        val dates = doc.select(".event-header-subtitle").text()
-        val prizePool = doc.select(".event-prize").text()
-        val location = doc.select(".event-header-location").text()
-        val format = doc.select(".event-format").text()
-        
-        // Parse participating teams
-        val teams = mutableListOf<EventTeam>()
-        val teamElements = doc.select(".event-team-item, .wf-module-item a[href*='/team/']")
-        
-        for (element in teamElements) {
-            val teamLink = if (element.tagName() == "a") element else element.select("a").first()
-            if (teamLink != null) {
-                val teamUrl = baseUrl + teamLink.attr("href")
-                val teamName = teamLink.select(".event-team-name, .text-of").text()
-                val teamTag = teamLink.select(".event-team-tag").text()
-                val standing = element.select(".event-team-rank").text()
-                
-                if (teamName.isNotEmpty()) {
-                    teams.add(EventTeam(teamName, teamTag.ifEmpty { null }, standing.ifEmpty { null }, teamUrl))
+        return getEventDetailByUrl("$baseUrl/event/$eventId")
+    }
+
+    /**
+     * Retrieves detailed information about an event using a full VLR event URL
+     *
+     * @param eventUrl Full event URL (e.g. https://www.vlr.gg/event/2684/vct-2026-emea-kickoff)
+     * @return Event details including participating teams
+     */
+    fun getEventDetailByUrl(eventUrl: String): EventDetail {
+        val normalizedUrl = normalizeUrl(eventUrl)
+        val doc: Document = Jsoup.connect(normalizedUrl).get()
+        val eventId = Regex("/event/(\\d+)").find(normalizedUrl)?.groupValues?.getOrNull(1)
+            ?: Regex("/event/(\\d+)").find(doc.location())?.groupValues?.getOrNull(1)
+            ?: "unknown"
+
+        val eventName = doc.selectFirst("h1.wf-title, h1")?.text()?.trim().orEmpty()
+
+        val rawDates = firstNonEmptyText(
+            doc,
+            ".event-desc-item.mod-dates",
+            ".event-header-subtitle"
+        ) ?: extractLabeledValue(doc, "Dates").orEmpty()
+        val dates = rawDates.replace("\\s+".toRegex(), " ").trim()
+
+        val rawPrize = firstNonEmptyText(
+            doc,
+            ".event-desc-item.mod-prize",
+            ".event-prize"
+        ) ?: extractLabeledValue(doc, "Prize")
+        val prizePool = rawPrize
+            ?.replace("Prize Pool", "", ignoreCase = true)
+            ?.replace("\\s+".toRegex(), " ")
+            ?.trim()
+            ?.ifEmpty { null }
+
+        val location = (firstNonEmptyText(
+            doc,
+            ".event-desc-item.mod-location",
+            ".event-header-location"
+        ) ?: extractLabeledValue(doc, "Location"))
+            ?.replace("\\s+".toRegex(), " ")
+            ?.trim()
+            ?.ifEmpty { null }
+
+        val format = extractLabeledValue(doc, "Format")
+            ?.replace("\\s+".toRegex(), " ")
+            ?.trim()
+            ?.ifEmpty { null }
+
+        // Extract event logo/image
+        val logoSrc = doc.select(".event-header-thumb img").attr("src")
+        val logoUrl = when {
+            logoSrc.isEmpty() -> null
+            logoSrc.startsWith("//") -> "https:$logoSrc"
+            logoSrc.startsWith("/") -> "$baseUrl$logoSrc"
+            else -> logoSrc
+        }
+
+        // Parse participating teams: prefer .event-teams-container cards (have logos), then other team links.
+        val teamsByUrl = linkedMapOf<String, EventTeam>()
+        val teamCards = doc.select(".event-teams-container .event-team")
+        for (card in teamCards) {
+            val teamLink = card.select("a.event-team-name[href^='/team/']").first() ?: continue
+            val href = teamLink.attr("href")
+            val teamUrl = normalizeUrl(href)
+            val teamName = teamLink.text().replace("\\s+".toRegex(), " ").trim()
+            if (teamName.isBlank()) continue
+            val teamLogoSrc = card.select("img.event-team-players-mask-team").attr("src")
+                .ifEmpty { card.select(".event-team-players-mask img").attr("src") }
+            val teamLogoUrl = when {
+                teamLogoSrc.isEmpty() -> null
+                teamLogoSrc.startsWith("//") -> "https:$teamLogoSrc"
+                teamLogoSrc.startsWith("/") -> "$baseUrl$teamLogoSrc"
+                else -> teamLogoSrc
+            }
+            teamsByUrl[teamUrl] = EventTeam(
+                name = teamName,
+                tag = null,
+                standing = null,
+                logoUrl = teamLogoUrl,
+                url = teamUrl
+            )
+        }
+        // Backfill any team links elsewhere on the page (e.g. prize distribution) without overwriting existing.
+        val teamLinks = doc.select("a[href^='/team/']")
+        for (teamLink in teamLinks) {
+            val href = teamLink.attr("href")
+            val teamUrl = normalizeUrl(href)
+            if (teamsByUrl.containsKey(teamUrl)) continue
+            val teamName = firstNonEmpty(
+                teamLink.select(".event-team-name, .text-of, .ge-text").text(),
+                teamLink.ownText(),
+                teamLink.text()
+            )?.replace("\\s+".toRegex(), " ")?.trim() ?: continue
+            if (teamName.length > 80) continue
+            val teamCard = teamLink.closest(".event-team")
+            val teamLogoSrc = teamCard?.select("img.event-team-players-mask-team, .event-team-players-mask img")?.firstOrNull()?.attr("src")
+                ?: teamLink.select("img").attr("src")
+            val teamLogoUrl = when {
+                teamLogoSrc.isNullOrEmpty() -> null
+                teamLogoSrc.startsWith("//") -> "https:$teamLogoSrc"
+                teamLogoSrc.startsWith("/") -> "$baseUrl$teamLogoSrc"
+                else -> teamLogoSrc
+            }
+            val teamTag = teamLink.select(".event-team-tag").text().trim().ifEmpty { null }
+            val standing = teamLink.closest(".event-team-item")?.select(".event-team-rank")?.text()?.trim()?.ifEmpty { null }
+            teamsByUrl[teamUrl] = EventTeam(
+                name = teamName,
+                tag = teamTag,
+                standing = standing,
+                logoUrl = teamLogoUrl,
+                url = teamUrl
+            )
+        }
+
+        return EventDetail(
+            id = eventId,
+            name = eventName,
+            dates = dates,
+            prizePool = prizePool,
+            teams = teamsByUrl.values.toList(),
+            brackets = parseEventBrackets(doc),
+            location = location,
+            format = format,
+            logoUrl = logoUrl,
+            url = normalizedUrl
+        )
+    }
+
+    private fun parseEventBrackets(doc: Document): List<EventBracketGroup> {
+        val groups = mutableListOf<EventBracketGroup>()
+        val bracketContainers = doc.select(".event-brackets-container .bracket-container")
+
+        for (container in bracketContainers) {
+            val classBasedGroupName = when {
+                container.classNames().contains("mod-upper") -> "Upper"
+                container.classNames().contains("mod-lower") -> "Lower"
+                container.classNames().contains("mod-middle") -> "Middle"
+                else -> "Bracket"
+            }
+
+            val rounds = mutableListOf<EventBracketRound>()
+            val columns = container.select(".bracket-col")
+            for (column in columns) {
+                val roundName = column.select(".bracket-col-label").firstOrNull()?.text().orEmpty()
+                    .replace("\\s+".toRegex(), " ")
+                    .trim()
+                if (roundName.isEmpty()) continue
+
+                val matches = mutableListOf<EventBracketMatch>()
+                val matchItems = column.select(".bracket-row > a.bracket-item")
+                for (matchItem in matchItems) {
+                    val matchUrl = matchItem.attr("href").takeIf { it.isNotBlank() }?.let { normalizeUrl(it) }
+                    val teamNodes = matchItem.select(".bracket-item-team")
+
+                    val firstTeamNode = teamNodes.getOrNull(0)
+                    val secondTeamNode = teamNodes.getOrNull(1)
+
+                    val team1 = parseBracketTeam(firstTeamNode)
+                    val team2 = parseBracketTeam(secondTeamNode)
+                    val status = matchItem.select(".bracket-item-status").text()
+                        .replace("\\s+".toRegex(), " ")
+                        .trim()
+                        .ifEmpty { null }
+
+                    matches.add(EventBracketMatch(team1 = team1, team2 = team2, status = status, url = matchUrl))
+                }
+
+                if (matches.isNotEmpty()) {
+                    rounds.add(EventBracketRound(name = roundName, matches = matches))
                 }
             }
+
+            if (rounds.isNotEmpty()) {
+                val inferredGroupName = inferBracketGroupName(rounds.first().name)
+                groups.add(EventBracketGroup(name = inferredGroupName ?: classBasedGroupName, rounds = rounds))
+            }
         }
-        
-        return EventDetail(eventId, eventName, dates, prizePool.ifEmpty { null }, 
-                          teams.distinctBy { it.name }, location.ifEmpty { null }, 
-                          format.ifEmpty { null }, url)
+
+        return groups
+    }
+
+    private fun inferBracketGroupName(roundName: String): String? {
+        val normalized = roundName.replace("\\s+".toRegex(), " ").trim()
+        if (normalized.isEmpty()) return null
+
+        val roundPrefix = Regex("^([A-Za-z]+)\\s+Round\\b", RegexOption.IGNORE_CASE)
+            .find(normalized)
+            ?.groupValues
+            ?.getOrNull(1)
+        if (!roundPrefix.isNullOrBlank()) {
+            return roundPrefix.replaceFirstChar { it.uppercase() }
+        }
+
+        return when {
+            normalized.contains("Upper", ignoreCase = true) -> "Upper"
+            normalized.contains("Lower", ignoreCase = true) -> "Lower"
+            normalized.contains("Middle", ignoreCase = true) -> "Middle"
+            else -> null
+        }
+    }
+
+    private fun parseBracketTeam(teamNode: Element?): EventBracketTeam {
+        if (teamNode == null) {
+            return EventBracketTeam(name = "TBD", score = null, isWinner = false, logoUrl = null)
+        }
+
+        val name = firstNonEmpty(
+            teamNode.select(".bracket-item-team-name span").text(),
+            teamNode.select(".bracket-item-team-name").text(),
+            teamNode.text()
+        )?.replace("\\s+".toRegex(), " ")?.trim().orEmpty().ifEmpty { "TBD" }
+
+        val score = teamNode.select(".bracket-item-team-score").text().trim().ifEmpty { null }
+        val isWinner = teamNode.classNames().contains("mod-winner")
+
+        val logoSrc = teamNode.select(".bracket-item-team-name img").attr("src")
+        val logoUrl = when {
+            logoSrc.isEmpty() -> null
+            logoSrc.startsWith("//") -> "https:$logoSrc"
+            logoSrc.startsWith("/") -> "$baseUrl$logoSrc"
+            else -> logoSrc
+        }
+
+        return EventBracketTeam(
+            name = name,
+            score = score,
+            isWinner = isWinner,
+            logoUrl = logoUrl
+        )
+    }
+
+    private fun firstNonEmptyText(doc: Document, vararg selectors: String): String? {
+        for (selector in selectors) {
+            val value = doc.select(selector).text().trim()
+            if (value.isNotEmpty()) return value
+        }
+        return null
+    }
+
+    private fun extractLabeledValue(doc: Document, label: String): String? {
+        val labelElement = doc.select("div, span, td, th, strong")
+            .firstOrNull { it.text().trim().equals(label, ignoreCase = true) }
+            ?: return null
+
+        val fromNextSibling = labelElement.nextElementSibling()?.text()?.trim()
+        if (!fromNextSibling.isNullOrEmpty()) return fromNextSibling
+
+        val parentText = labelElement.parent()?.text()?.trim().orEmpty()
+        if (parentText.equals(label, ignoreCase = true)) return null
+
+        return parentText.removePrefix(label).replace("\\s+".toRegex(), " ").trim().ifEmpty { null }
+    }
+
+    private fun firstNonEmpty(vararg values: String?): String? {
+        return values.firstOrNull { !it.isNullOrBlank() }
+    }
+
+    private fun normalizeUrl(urlOrPath: String): String {
+        if (urlOrPath.startsWith("http://") || urlOrPath.startsWith("https://")) return urlOrPath
+        return if (urlOrPath.startsWith("/")) "$baseUrl$urlOrPath" else "$baseUrl/$urlOrPath"
     }
     
     /**
@@ -934,17 +1155,7 @@ class VlrScraper {
         return parseMatches(doc)
     }
     
-    /**
-     * Retrieves team rankings for a specific region
-     *
-     * @param region Region filter
-     * @return List of team rankings in the specified region
-     */
-    fun getRankingsByRegion(region: String): List<TeamRanking> {
-        val url = "$baseUrl/rankings/$region"
-        val doc: Document = Jsoup.connect(url).get()
-        return getRankings(doc)
-    }
+
     
     /**
      * Retrieves available streams for a match
@@ -976,65 +1187,141 @@ class VlrScraper {
         return streams.distinctBy { it.url }
     }
 
-    private fun getRankings(doc: Document): List<TeamRanking> {
-        val rankings = mutableListOf<TeamRanking>()
+    fun getGlobalRankings(): List<RegionRankings> {
+        val doc = Jsoup.connect("$baseUrl/rankings").get()
+        return getRegionRankings(doc)
+    }
 
-        // Try div-based structure first (regional pages like /rankings/north-america)
+    fun getRankingsByRegion(region: String): List<TeamRanking> {
+        val doc = Jsoup.connect("$baseUrl/rankings/$region").get()
+        return getRegionRankings(doc).flatMap { it.rankings }
+    }
+
+    private fun getRegionRankings(doc: Document): List<RegionRankings> {
+        val allRegionRankings = mutableListOf<RegionRankings>()
+
+        // Try div-based structure first (individual regional pages like /rankings/north-america)
         val divItems = doc.select("div.rank-item")
         if (divItems.isNotEmpty()) {
+            val rankings = mutableListOf<TeamRanking>()
+            // Extract region name from page title or assume mostly one region
+            var regionName = doc.title().replace("Valorant Rankings: ", "").replace(" | VLR.gg", "").trim()
+            if (regionName.isEmpty()) regionName = "Unknown Region"
+
             for (item in divItems) {
                 val rankElem = item.select(".rank-item-rank-num")
                 if (rankElem.isEmpty()) continue
 
                 val rank = rankElem.text().trim()
-                val teamLink = item.select("a.rank-item-team").first()
-                if (teamLink == null) continue
+                val teamLink = item.select("a.rank-item-team").first() ?: continue
                 
-                // Team name is in the data-sort-value attribute for clean extraction
+                // Team name extraction
                 val teamText = teamLink.attr("data-sort-value").ifEmpty { 
-                    // Fallback: extract from .ge-text div if data-sort-value is missing
                     teamLink.select(".ge-text").first()?.ownText()?.trim() ?: ""
                 }
-                val region = teamLink.select(".rank-item-team-country").text()
+                val teamRegion = teamLink.select(".rank-item-team-country").text()
                 val url = baseUrl + teamLink.attr("href")
-                // Get the first .rank-item-rating which contains the total points
                 val points = item.select(".rank-item-rating").first()?.text() ?: ""
+                
+                val logoUrl = teamLink.select("img").attr("src").let {
+                    if (it.startsWith("//")) "https:$it" 
+                    else if (it.startsWith("/")) "https://www.vlr.gg$it"
+                    else it
+                }.ifEmpty { null }
 
                 if (teamText.isNotEmpty()) {
-                    rankings.add(TeamRanking(rank, teamText, region, points, url))
+                    rankings.add(TeamRanking(rank, teamText, teamRegion, points, url, logoUrl))
                 }
+            }
+            if (rankings.isNotEmpty()) {
+                allRegionRankings.add(RegionRankings(regionName, rankings))
             }
         } else {
             // Fall back to table-based structure (World page /rankings)
-            // Uses table.wf-faux-table with tr.wf-card rows
-            val rows = doc.select("table.wf-faux-table tr.wf-card")
-            for (row in rows) {
-                val rankCell = row.select("td.rank-item-rank").first()
-                if (rankCell == null) continue
-
-                // Rank might be in an <a> tag or direct text
-                val rank = rankCell.select("a").text().ifEmpty { rankCell.text() }.trim()
+            // The global page has h2 headers followed by tables
+            val headers = doc.select("h2")
+            for (header in headers) {
+                val regionName = header.text().trim()
+                if (regionName.isEmpty()) continue
                 
-                val teamCell = row.select("td.rank-item-team").first()
-                if (teamCell == null) continue
-
-                val teamLink = teamCell.select("a").first()
-                if (teamLink == null) continue
-                
-                // Team name is in the first div's direct text
-                val teamDiv = teamLink.select("div").first()
-                val teamText = teamDiv?.ownText()?.trim() ?: ""
-                val region = teamDiv?.select(".rank-item-team-country")?.text() ?: ""
-                val url = baseUrl + teamLink.attr("href")
-                val points = row.select("td.rank-item-rating").text()
-
-                if (teamText.isNotEmpty()) {
-                    rankings.add(TeamRanking(rank, teamText, region, points, url))
+                // Find the next table
+                var sibling = header.nextElementSibling()
+                while (sibling != null && !sibling.tagName().equals("table", ignoreCase = true)) {
+                    sibling = sibling.nextElementSibling()
                 }
+                
+                if (sibling != null && sibling.tagName().equals("table", ignoreCase = true)) {
+                    val rankings = mutableListOf<TeamRanking>()
+                    val rows = sibling.select("tr.wf-card")
+                    for (row in rows) {
+                        val rankCell = row.select("td.rank-item-rank").first() ?: continue
+                        val rank = rankCell.select("a").text().ifEmpty { rankCell.text() }.trim()
+                        
+                        val teamCell = row.select("td.rank-item-team").first() ?: continue
+                        val teamLink = teamCell.select("a").first() ?: continue
+                        
+                        val teamDiv = teamLink.select("div").first()
+                        val teamText = teamDiv?.ownText()?.trim() ?: ""
+                        val region = teamDiv?.select(".rank-item-team-country")?.text() ?: ""
+                        val url = baseUrl + teamLink.attr("href")
+                        val points = row.select("td.rank-item-rating").text()
+                        
+                        val logoUrl = teamLink.select("img").attr("src").let {
+                            if (it.startsWith("//")) "https:$it" 
+                            else if (it.startsWith("/")) "https://www.vlr.gg$it"
+                            else it
+                        }.ifEmpty { null }
+
+                        if (teamText.isNotEmpty()) {
+                            rankings.add(TeamRanking(rank, teamText, region, points, url, logoUrl))
+                        }
+                    }
+                    if (rankings.isNotEmpty()) {
+                        allRegionRankings.add(RegionRankings(regionName, rankings))
+                    }
+                }
+            }
+            
+            // If no headers found but tables exist (maybe only one table?), fallback to generic
+            if (allRegionRankings.isEmpty()) {
+                 val tables = doc.select("table.wf-faux-table")
+                 if (tables.isNotEmpty()) {
+                     val rankings = mutableListOf<TeamRanking>()
+                     for (table in tables) {
+                         val rows = table.select("tr.wf-card")
+                         for (row in rows) {
+                             // ... parse row ...
+                             val rankCell = row.select("td.rank-item-rank").first() ?: continue
+                             val rank = rankCell.select("a").text().ifEmpty { rankCell.text() }.trim()
+                             
+                             val teamCell = row.select("td.rank-item-team").first() ?: continue
+                             val teamLink = teamCell.select("a").first() ?: continue
+                             
+                             val teamDiv = teamLink.select("div").first()
+                             val teamText = teamDiv?.ownText()?.trim() ?: ""
+                             val region = teamDiv?.select(".rank-item-team-country")?.text() ?: ""
+                             val url = baseUrl + teamLink.attr("href")
+                             val points = row.select("td.rank-item-rating").text() 
+                             
+                             val logoUrl = teamLink.select("img").attr("src").let {
+                                if (it.startsWith("//")) "https:$it" 
+                                else if (it.startsWith("/")) "https://www.vlr.gg$it"
+                                else it
+                            }.ifEmpty { null }
+
+                             if (teamText.isNotEmpty()) {
+                                 rankings.add(TeamRanking(rank, teamText, region, points, url, logoUrl))
+                             }
+                         }
+                     }
+                      if (rankings.isNotEmpty()) {
+                        allRegionRankings.add(RegionRankings("World", rankings))
+                    }
+                 }
             }
         }
 
-        return rankings
+        return allRegionRankings
     }
     
     /**

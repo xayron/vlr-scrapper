@@ -5,6 +5,7 @@ import kotlinx.serialization.Serializable
 /**
  * Represents a Valorant event/tournament
  *
+ * @property id Event ID
  * @property name Event name
  * @property status Event status (e.g., "Ongoing", "Upcoming", "Completed")
  * @property dates Event dates
@@ -14,6 +15,7 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class Event(
+    val id: String,
     val name: String,
     val status: String,
     val dates: String,

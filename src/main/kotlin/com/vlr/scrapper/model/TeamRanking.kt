@@ -17,5 +17,6 @@ data class TeamRanking(
     val teamName: String,
     val region: String,
     val points: String,
-    val url: String
+    val url: String,
+    val logoUrl: String? = null
 )

@@ -23,11 +23,12 @@ dependencies {
     implementation("io.ktor:ktor-server-content-negotiation:$ktorVersion")
     implementation("io.ktor:ktor-server-swagger:$ktorVersion")
     implementation("io.ktor:ktor-server-cors:$ktorVersion")
+    implementation("io.ktor:ktor-server-config-yaml:$ktorVersion")
     testImplementation(kotlin("test"))
 }
 
 application {
-    mainClass.set("com.vlr.scrapper.ServerKt")
+    mainClass.set("io.ktor.server.netty.EngineMain")
 }
 
 tasks.test {
