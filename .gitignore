@@ -80,4 +80,4 @@ local.properties
 
 # Test results
 test-results/
-test-output/
+test-output/gradle.properties
