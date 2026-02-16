@@ -2,7 +2,7 @@ name: Deploy to GCP
 
 on:
   push:
-    branches: [ main ]  # or master, depending on your branch
+    branches: [ main ]
 
 jobs:
   deploy:
@@ -25,20 +25,20 @@ jobs:
         SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
         HOST: ${{ secrets.HOST }}
         USERNAME: ${{ secrets.USERNAME }}
-      shell: bash  # Remove the -e flag
+      shell: bash
       run: |
-        set -e  # Re-enable exit on error, but we'll handle pkill specially
+        set -e
         
         mkdir -p ~/.ssh
         echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
         chmod 600 ~/.ssh/id_ed25519
         ssh-keyscan -H $HOST >> ~/.ssh/known_hosts
-    
+        
         # Stop app (allow failure if not running)
         ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 $USERNAME@$HOST "pkill -f 'java -jar scrapper.jar'" || true
-    
+        
         # Upload new JAR
         scp -i ~/.ssh/id_ed25519 build/libs/vlr-scrapper-all.jar $USERNAME@$HOST:~/scrapper.jar
-    
+        
         # Start app
         ssh -i ~/.ssh/id_ed25519 $USERNAME@$HOST "nohup java -jar scrapper.jar > app.log 2>&1 &"
