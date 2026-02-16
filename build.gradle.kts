@@ -1,7 +1,8 @@
 plugins {
+    application
     kotlin("jvm") version "2.2.20"
     kotlin("plugin.serialization") version "2.2.20"
-    application
+    id("com.gradleup.shadow") version "9.3.1"
 }
 
 kotlin {
@@ -12,7 +13,7 @@ repositories {
     mavenCentral()
 }
 
-val ktorVersion = "3.4.0" 
+val ktorVersion = "3.4.0"
 
 dependencies {
     implementation("org.jsoup:jsoup:1.17.2")
