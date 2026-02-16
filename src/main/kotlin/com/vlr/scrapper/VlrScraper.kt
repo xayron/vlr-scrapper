@@ -57,6 +57,14 @@ class VlrScraper {
 
     private val baseUrl = "https://www.vlr.gg"
 
+    private fun createConnection(url: String): org.jsoup.Connection {
+        return Jsoup.connect(url)
+            .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            .header("Accept-Language", "en-US,en;q=0.9")
+            .cookie("abok", "1")
+            .timeout(30000)
+    }
+
     /**
      * Extracts country code from a CSS class string
      *
@@ -89,7 +97,7 @@ class VlrScraper {
      * @return List of upcoming matches
      */
     fun getUpcomingMatches(page: String): List<Match> {
-        val doc: Document = Jsoup.connect("$baseUrl/matches/?page=$page").get()
+        val doc: Document = createConnection("$baseUrl/matches/?page=$page").get()
         return parseMatches(doc)
     }
 
@@ -100,9 +108,7 @@ class VlrScraper {
      * @return NewsDetail object containing article content and comments
      */
     fun getNewsDetail(urlStr: String): com.vlr.scrapper.model.NewsDetail {
-        val doc: Document = Jsoup.connect(urlStr)
-            .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-            .header("Accept-Language", "en-US,en;q=0.9")
+        val doc: Document = createConnection(urlStr)
             .get()
 
         // Metadata Parsing
@@ -192,7 +198,7 @@ class VlrScraper {
      */
     fun getCompletedMatches(page: Int = 1): List<Match> {
         val url = if (page > 1) "$baseUrl/matches/results?page=$page" else "$baseUrl/matches/results"
-        val doc: Document = Jsoup.connect(url).get()
+        val doc: Document = createConnection(url).get()
         return parseMatches(doc)
     }
 
@@ -202,7 +208,7 @@ class VlrScraper {
      * @return List of events
      */
     fun getEvents(): List<Event> {
-        val doc: Document = Jsoup.connect("$baseUrl/events").get()
+        val doc: Document = createConnection("$baseUrl/events").get()
         val events = mutableListOf<Event>()
         
         val items = doc.select("a.event-item")
@@ -263,7 +269,7 @@ class VlrScraper {
      * @return List of player statistics
      */
     fun getStats(): List<PlayerStat> {
-        val doc: Document = Jsoup.connect("$baseUrl/stats").get()
+        val doc: Document = createConnection("$baseUrl/stats").get()
         val stats = mutableListOf<PlayerStat>()
         
         val rows = doc.select("tbody tr")
@@ -342,7 +348,7 @@ class VlrScraper {
      */
     fun getNews(page: Int = 1): List<NewsItem> {
         val url = if (page > 1) "$baseUrl/news?page=$page" else "$baseUrl/news"
-        val doc: Document = Jsoup.connect(url).get()
+        val doc: Document = createConnection(url).get()
         val newsList = mutableListOf<NewsItem>()
         
         val items = doc.select("a").toList().filter { 
@@ -379,7 +385,7 @@ class VlrScraper {
      */
     fun getTransfers(page: Int = 1): List<Transfer> {
         val url = if (page > 1) "$baseUrl/transfers?page=$page" else "$baseUrl/transfers"
-        val doc: Document = Jsoup.connect(url).get()
+        val doc: Document = createConnection(url).get()
         val transfers = mutableListOf<Transfer>()
         
         val potentialRows = doc.select("div").filter { div ->
@@ -467,7 +473,7 @@ class VlrScraper {
      */
     fun getTeam(teamId: String): Team {
         val url = "$baseUrl/team/$teamId"
-        val doc: Document = Jsoup.connect(url).get()
+        val doc: Document = createConnection(url).get()
         
         // Extract team header information
         val teamName = doc.select(".team-header-name h1, h1.wf-title").text()
@@ -711,7 +717,7 @@ class VlrScraper {
      */
     fun getPlayer(playerId: String): Player {
         val url = "$baseUrl/player/$playerId"
-        val doc: Document = Jsoup.connect(url).get()
+        val doc: Document = createConnection(url).get()
         
         val playerName = doc.select(".wf-title").text()
         val realName = doc.select(".player-header-name").text()
@@ -754,36 +760,62 @@ class VlrScraper {
      * @return List of live matches
      */
     fun getLiveMatches(): List<LiveMatch> {
-        val doc: Document = Jsoup.connect(baseUrl).get()
+        val doc: Document = createConnection(baseUrl).get()
         val liveMatches = mutableListOf<LiveMatch>()
         
-        // Look for live match containers
-        val liveItems = doc.select(".wf-card.mod-live")
+        // Look for live match containers - new structure uses .wf-card.hz-match
+        // We filter for ones that are actually live (usually have a timestamp or "LIVE" text, 
+        // but typically the homepage top section contains live/upcoming. Live ones often have score or specific status)
+        // Based on debug output, live matches have "mod-bg-after-green" or "mod-bg-after-orange" and contain "hz-match-team-score"
         
-        for (item in liveItems) {
-            val matchUrl = baseUrl + item.attr("href")
-            val team1 = item.select(".match-item-vs-team-name").getOrNull(0)?.text() ?: "Unknown"
-            val team2 = item.select(".match-item-vs-team-name").getOrNull(1)?.text() ?: "Unknown"
-            val score1 = item.select(".match-item-vs-team-score").getOrNull(0)?.text() ?: "0"
-            val score2 = item.select(".match-item-vs-team-score").getOrNull(1)?.text() ?: "0"
-            val event = item.select(".match-item-event").text()
-            val status = item.select(".match-item-eta").text()
-            
-            // Extract flags
-            val flags = item.select(".match-item-vs-team .flag")
-            val team1FlagClass = flags.getOrNull(0)?.className() ?: ""
-            val team2FlagClass = flags.getOrNull(1)?.className() ?: ""
-            
-            val team1CountryCode = extractCountryCode(team1FlagClass)
-            val team2CountryCode = extractCountryCode(team2FlagClass)
-            
-            val team1CountryFlag = if (team1CountryCode != null) "https://www.vlr.gg/img/icons/flags/16/$team1CountryCode.png" else null
-            val team2CountryFlag = if (team2CountryCode != null) "https://www.vlr.gg/img/icons/flags/16/$team2CountryCode.png" else null
-            
-            val eventIcon = extractEventIcon(item)
-            
-            liveMatches.add(LiveMatch(team1, team2, score1, score2, event, status, 
-                                     team1CountryFlag, team2CountryFlag, eventIcon, matchUrl))
+        val matchCards = doc.select(".wf-card.hz-match")
+        
+        for (item in matchCards) {
+             // Check if it's live/ongoing. The debug output showed live matches. 
+             // Usually live matches have a score that is not empty.
+             val scoreElements = item.select(".hz-match-team-score")
+             val score1 = scoreElements.getOrNull(0)?.text()?.trim() ?: ""
+             val score2 = scoreElements.getOrNull(1)?.text()?.trim() ?: ""
+             
+             // If scores are empty or just "-", it might be upcoming. 
+             // However, the user specifically asked for /live.
+             // In the old scraper, we looked for .mod-live.
+             // If VLR changed the structure, we might need to rely on the "LIVE" tag or similar.
+             // Debugging showed: <div class="h-match-eta mod-live"> inside specific containers? 
+             // No, the debug showed .h-match-eta.mod-live elements, but their parents were different.
+             // Let's rely on the existence of scores for now or if we can find a "LIVE" indicator.
+             // Actually, the debug candidate showed: <a class="wf-card hz-match mod-bg-after-green" ...>
+             // "mod-bg-after-green" suggests live/active.
+             
+             // Let's stick to parsing all hz-match cards and filtering for those that look live 
+             // (have scores or specific class).
+             
+             val matchUrl = normalizeUrl(item.attr("href"))
+             val event = item.select(".hz-match-event").text().trim()
+             val status = item.select(".hz-match-series").text().trim()
+             
+             // Teams
+             val teams = item.select(".hz-match-team-name")
+             val team1 = teams.getOrNull(0)?.text()?.trim() ?: "Unknown"
+             val team2 = teams.getOrNull(1)?.text()?.trim() ?: "Unknown"
+             
+             // Flags
+             val team1FlagClass = teams.getOrNull(0)?.select("i.flag")?.attr("class") ?: ""
+             val team2FlagClass = teams.getOrNull(1)?.select("i.flag")?.attr("class") ?: ""
+             
+             val team1CountryCode = extractCountryCode(team1FlagClass)
+             val team2CountryCode = extractCountryCode(team2FlagClass)
+             
+             val team1CountryFlag = if (team1CountryCode != null) "https://www.vlr.gg/img/icons/flags/16/$team1CountryCode.png" else null
+             val team2CountryFlag = if (team2CountryCode != null) "https://www.vlr.gg/img/icons/flags/16/$team2CountryCode.png" else null
+             
+             val eventIcon = null // Not easily available in new card structure
+             
+             // Only add if it seems to be a valid match card
+             if (team1 != "Unknown" && team2 != "Unknown") {
+                 liveMatches.add(LiveMatch(team1, team2, score1, score2, event, status, 
+                                          team1CountryFlag, team2CountryFlag, eventIcon, matchUrl))
+             }
         }
         
         return liveMatches
@@ -807,7 +839,7 @@ class VlrScraper {
      */
     fun getEventDetailByUrl(eventUrl: String): EventDetail {
         val normalizedUrl = normalizeUrl(eventUrl)
-        val doc: Document = Jsoup.connect(normalizedUrl).get()
+        val doc: Document = createConnection(normalizedUrl).get()
         val eventId = Regex("/event/(\\d+)").find(normalizedUrl)?.groupValues?.getOrNull(1)
             ?: Regex("/event/(\\d+)").find(doc.location())?.groupValues?.getOrNull(1)
             ?: "unknown"
@@ -1068,7 +1100,7 @@ class VlrScraper {
      */
     fun searchTeams(query: String): List<TeamSearchResult> {
         val url = "$baseUrl/search/?q=${java.net.URLEncoder.encode(query, "UTF-8")}"
-        val doc: Document = Jsoup.connect(url).get()
+        val doc: Document = createConnection(url).get()
         val results = mutableListOf<TeamSearchResult>()
         
         val teamElements = doc.select("a[href*='/team/']")
@@ -1099,7 +1131,7 @@ class VlrScraper {
      */
     fun searchPlayers(query: String): List<PlayerSearchResult> {
         val url = "$baseUrl/search/?q=${java.net.URLEncoder.encode(query, "UTF-8")}"
-        val doc: Document = Jsoup.connect(url).get()
+        val doc: Document = createConnection(url).get()
         val results = mutableListOf<PlayerSearchResult>()
         
         val playerElements = doc.select("a[href*='/player/']")
@@ -1134,7 +1166,7 @@ class VlrScraper {
         } else {
             "$baseUrl/matches?region=$region"
         }
-        val doc: Document = Jsoup.connect(url).get()
+        val doc: Document = createConnection(url).get()
         return parseMatches(doc)
     }
     
@@ -1151,7 +1183,7 @@ class VlrScraper {
         } else {
             "$baseUrl/event/matches/$eventId"
         }
-        val doc: Document = Jsoup.connect(url).get()
+        val doc: Document = createConnection(url).get()
         return parseMatches(doc)
     }
     
@@ -1164,7 +1196,7 @@ class VlrScraper {
      * @return List of available stream links
      */
     fun getMatchStreams(matchUrl: String): List<StreamLink> {
-        val doc: Document = Jsoup.connect(matchUrl).get()
+        val doc: Document = createConnection(matchUrl).get()
         val streams = mutableListOf<StreamLink>()
         
         val streamElements = doc.select(".match-streams-btn, a[href*='twitch.tv'], a[href*='youtube.com']")
@@ -1188,12 +1220,12 @@ class VlrScraper {
     }
 
     fun getGlobalRankings(): List<RegionRankings> {
-        val doc = Jsoup.connect("$baseUrl/rankings").get()
+        val doc = createConnection("$baseUrl/rankings").get()
         return getRegionRankings(doc)
     }
 
     fun getRankingsByRegion(region: String): List<TeamRanking> {
-        val doc = Jsoup.connect("$baseUrl/rankings/$region").get()
+        val doc = createConnection("$baseUrl/rankings/$region").get()
         return getRegionRankings(doc).flatMap { it.rankings }
     }
 
@@ -1331,7 +1363,7 @@ class VlrScraper {
      * @return Comprehensive match details including teams, scores, maps, streams, and player stats
      */
     fun getMatchDetails(matchUrl: String): MatchDetail {
-        val doc: Document = Jsoup.connect(matchUrl).get()
+        val doc: Document = createConnection(matchUrl).get()
         
         // Extract event name, image, and subtitle
         val eventHeader = doc.select("a.match-header-event").first()
