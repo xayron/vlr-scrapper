@@ -17,6 +17,15 @@ fun Application.configureRouting(scraper: VlrScraper) {
         // ============ MATCH ENDPOINTS ============
 
         route("/matches") {
+            get("/live") {
+                try {
+                    val liveMatches = scraper.getLiveMatches()
+                    call.respond(liveMatches)
+                } catch (e: Exception) {
+                    call.respondText("Error: ${e.message}", status = HttpStatusCode.InternalServerError)
+                }
+            }
+
             get("/upcoming") {
                 try {
                     val page : String = call.request.queryParameters["page"] ?: "1"
@@ -182,17 +191,6 @@ fun Application.configureRouting(scraper: VlrScraper) {
             try {
                 val player = scraper.getPlayer(playerId)
                 call.respond(player)
-            } catch (e: Exception) {
-                call.respondText("Error: ${e.message}", status = HttpStatusCode.InternalServerError)
-            }
-        }
-        
-        // ============ LIVE MATCHES ENDPOINT ============
-        
-        get("/live") {
-            try {
-                val liveMatches = scraper.getLiveMatches()
-                call.respond(liveMatches)
             } catch (e: Exception) {
                 call.respondText("Error: ${e.message}", status = HttpStatusCode.InternalServerError)
             }
