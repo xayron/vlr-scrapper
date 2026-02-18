@@ -125,10 +125,19 @@ class VlrScraper {
 
         // Content Parsing
         val contentElement = doc.selectFirst(".article-body")
+        
+        // Embed YouTube videos into content
+        contentElement?.select("iframe")?.forEach { iframe ->
+            val src = iframe.attr("src")
+            if (src.contains("youtube.com") || src.contains("youtu.be")) {
+                val videoUrl = if (src.startsWith("//")) "https:$src" else src
+                val ytElement = org.jsoup.nodes.Element("ytlink").text(videoUrl)
+                iframe.replaceWith(ytElement)
+            }
+        }
+        
         contentElement?.select("style, script")?.remove()
-        contentElement?.select("br")?.append("\\n")
-        contentElement?.select("p")?.prepend("\\n\\n")
-        val content = contentElement?.text()?.trim() ?: ""
+        val content = contentElement?.html() ?: ""
 
         // Comment Parsing (Linear to Tree)
         class MutableComment(
