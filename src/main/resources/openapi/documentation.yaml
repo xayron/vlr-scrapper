@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: VLR Scraper API
-  description: API for retrieving Valorant competitive data from VLR.gg
+  description: API for retrieving Valorant competitive data from VLR.gg and TheSpike.gg
   version: 1.0.0
 servers:
   - url: http://localhost:8080
@@ -10,6 +10,8 @@ servers:
 paths:
   /matches/upcoming:
     get:
+      tags:
+        - VLR
       summary: Get upcoming matches
       responses:
         '200':
@@ -22,6 +24,8 @@ paths:
                   $ref: '#/components/schemas/Match'
   /matches/completed:
     get:
+      tags:
+        - VLR
       summary: Get completed matches
       parameters:
         - name: page
@@ -40,6 +44,8 @@ paths:
                   $ref: '#/components/schemas/Match'
   /matches/details:
     get:
+      tags:
+        - VLR
       summary: Get match details
       parameters:
         - name: url
@@ -57,6 +63,8 @@ paths:
                 $ref: '#/components/schemas/MatchDetail'
   /live:
     get:
+      tags:
+        - VLR
       summary: Get live matches
       responses:
         '200':
@@ -69,6 +77,8 @@ paths:
                   $ref: '#/components/schemas/LiveMatch'
   /matches/region/{region}:
     get:
+      tags:
+        - VLR
       summary: Get matches by region
       parameters:
         - name: region
@@ -93,6 +103,8 @@ paths:
                   $ref: '#/components/schemas/Match'
   /matches/event/{eventId}:
     get:
+      tags:
+        - VLR
       summary: Get matches by event
       parameters:
         - name: eventId
@@ -117,6 +129,8 @@ paths:
                   $ref: '#/components/schemas/Match'
   /team/{id}:
     get:
+      tags:
+        - VLR
       summary: Get team details
       parameters:
         - name: id
@@ -134,6 +148,8 @@ paths:
                 $ref: '#/components/schemas/Team'
   /player/{id}:
     get:
+      tags:
+        - VLR
       summary: Get player details
       parameters:
         - name: id
@@ -151,6 +167,8 @@ paths:
                 $ref: '#/components/schemas/Player'
   /news:
     get:
+      tags:
+        - VLR
       summary: Get latest news
       parameters:
         - name: page
@@ -169,6 +187,8 @@ paths:
                   $ref: '#/components/schemas/NewsItem'
   /news/details:
     get:
+      tags:
+        - VLR
       summary: Get news details
       parameters:
         - name: url
@@ -186,6 +206,8 @@ paths:
                 $ref: '#/components/schemas/NewsDetail'
   /transfers:
     get:
+      tags:
+        - VLR
       summary: Get recent transfers
       parameters:
         - name: page
@@ -204,6 +226,8 @@ paths:
                   $ref: '#/components/schemas/Transfer'
   /events:
     get:
+      tags:
+        - VLR
       summary: Get events
       responses:
         '200':
@@ -216,6 +240,8 @@ paths:
                   $ref: '#/components/schemas/Event'
   /event/{id}:
     get:
+      tags:
+        - VLR
       summary: Get event details
       parameters:
         - name: id
@@ -233,6 +259,8 @@ paths:
                 $ref: '#/components/schemas/EventDetail'
   /rankings:
     get:
+      tags:
+        - VLR
       summary: Get global team rankings
       responses:
         '200':
@@ -245,6 +273,8 @@ paths:
                   $ref: '#/components/schemas/RegionRankings'
   /rankings/region/{region}:
     get:
+      tags:
+        - VLR
       summary: Get team rankings by region
       parameters:
         - name: region
@@ -264,6 +294,8 @@ paths:
                   $ref: '#/components/schemas/TeamRanking'
   /stats:
     get:
+      tags:
+        - VLR
       summary: Get player statistics
       responses:
         '200':
@@ -276,6 +308,8 @@ paths:
                   $ref: '#/components/schemas/PlayerStat'
   /streams:
     get:
+      tags:
+        - VLR
       summary: Get match streams
       parameters:
         - name: url
@@ -295,6 +329,8 @@ paths:
                   $ref: '#/components/schemas/StreamLink'
   /search/teams:
     get:
+      tags:
+        - VLR
       summary: Search teams
       parameters:
         - name: q
@@ -314,6 +350,8 @@ paths:
                   $ref: '#/components/schemas/TeamSearchResult'
   /search/players:
     get:
+      tags:
+        - VLR
       summary: Search players
       parameters:
         - name: q
@@ -331,6 +369,276 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/PlayerSearchResult'
+
+  # ============ THESPIKE.GG ENDPOINTS ============
+
+  /thespike/regions:
+    get:
+      tags:
+        - The Spike
+      summary: Get available regions for TheSpike.gg
+      description: Returns a map of region IDs to region names
+      responses:
+        '200':
+          description: Map of region IDs to names
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+
+  /thespike/rankings:
+    get:
+      tags:
+        - The Spike
+      summary: Get team rankings from TheSpike.gg
+      parameters:
+        - name: region
+          in: query
+          schema:
+            type: integer
+          description: Region ID (1=Americas, 2=EMEA, 3=Pacific, 4=Japan, 5=Brazil, 6=LATAM North, 7=SEA, 9=China/MENA, 10=LATAM South)
+      responses:
+        '200':
+          description: Team rankings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TheSpikeRankings'
+
+  /thespike/rankings/region/{regionId}:
+    get:
+      tags:
+        - The Spike
+      summary: Get team rankings by region from TheSpike.gg
+      parameters:
+        - name: regionId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Region ID
+      responses:
+        '200':
+          description: Team rankings for the region
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TheSpikeRankings'
+
+  /thespike/events:
+    get:
+      tags:
+        - The Spike
+      summary: Get events from TheSpike.gg
+      parameters:
+        - name: region
+          in: query
+          schema:
+            type: integer
+          description: Region ID
+      responses:
+        '200':
+          description: Events (ongoing and upcoming)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TheSpikeEventsResponse'
+
+  /thespike/events/region/{regionId}:
+    get:
+      tags:
+        - The Spike
+      summary: Get events by region from TheSpike.gg
+      parameters:
+        - name: regionId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Region ID
+      responses:
+        '200':
+          description: Events for the region
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TheSpikeEventsResponse'
+
+  /thespike/events/{eventId}:
+    get:
+      tags:
+        - The Spike
+      summary: Get event details from TheSpike.gg
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Event ID
+      responses:
+        '200':
+          description: Event details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TheSpikeEvent'
+
+  /thespike/matches:
+    get:
+      tags:
+        - The Spike
+      summary: Get matches from TheSpike.gg
+      parameters:
+        - name: region
+          in: query
+          schema:
+            type: integer
+          description: Region ID
+      responses:
+        '200':
+          description: Matches (live, upcoming, completed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TheSpikeMatchesResponse'
+
+  /thespike/matches/live:
+    get:
+      tags:
+        - The Spike
+      summary: Get live matches from TheSpike.gg
+      parameters:
+        - name: region
+          in: query
+          schema:
+            type: integer
+          description: Region ID
+      responses:
+        '200':
+          description: Live matches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TheSpikeMatch'
+
+  /thespike/matches/region/{regionId}:
+    get:
+      tags:
+        - The Spike
+      summary: Get matches by region from TheSpike.gg
+      parameters:
+        - name: regionId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Region ID
+      responses:
+        '200':
+          description: Matches for the region
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TheSpikeMatchesResponse'
+
+  /thespike/match/{matchId}:
+    get:
+      tags:
+        - The Spike
+      summary: Get match details from TheSpike.gg
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Match ID
+      responses:
+        '200':
+          description: Match details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TheSpikeMatch'
+
+  /thespike/teams/{teamId}:
+    get:
+      tags:
+        - The Spike
+      summary: Get team details from TheSpike.gg
+      parameters:
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Team ID
+      responses:
+        '200':
+          description: Team details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TheSpikeTeam'
+
+  /thespike/news:
+    get:
+      tags:
+        - The Spike
+      summary: Get news from TheSpike.gg
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+          description: Page number
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: Category slug (esports, patch-notes, gaming)
+        - name: country
+          in: query
+          schema:
+            type: string
+          description: Country code
+      responses:
+        '200':
+          description: News articles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TheSpikeNewsResponse'
+
+  /thespike/news/category/{category}:
+    get:
+      tags:
+        - The Spike
+      summary: Get news by category from TheSpike.gg
+      parameters:
+        - name: category
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Category slug
+        - name: page
+          in: query
+          schema:
+            type: integer
+          description: Page number
+      responses:
+        '200':
+          description: News articles for the category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TheSpikeNewsResponse'
 
 components:
   schemas:
@@ -1020,3 +1328,888 @@ components:
         defend:
           type: string
           nullable: true
+
+    # ============ THESPIKE.GG SCHEMAS ============
+
+    TheSpikeRankings:
+      type: object
+      properties:
+        date:
+          type: string
+          nullable: true
+        teams:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeRankedTeam'
+
+    TheSpikeRankedTeam:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        slug:
+          type: string
+        darkLogoUrl:
+          type: string
+          nullable: true
+        lightLogoUrl:
+          type: string
+          nullable: true
+        achievements:
+          type: integer
+          nullable: true
+        form:
+          type: integer
+          nullable: true
+        totalPoints:
+          type: integer
+          nullable: true
+        rankDifference:
+          type: integer
+          nullable: true
+        rankDirection:
+          type: string
+          nullable: true
+        players:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikePlayerBasic'
+
+    TheSpikePlayerBasic:
+      type: object
+      properties:
+        id:
+          type: integer
+        nickname:
+          type: string
+        slug:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        surname:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+        countryCode:
+          type: string
+          nullable: true
+        isCaptain:
+          type: boolean
+          nullable: true
+
+    TheSpikeEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+        startDate:
+          type: string
+          nullable: true
+        endDate:
+          type: string
+          nullable: true
+        prizePool:
+          type: integer
+          nullable: true
+        currency:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+        countryCode:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        teamCount:
+          type: integer
+          nullable: true
+        type:
+          type: integer
+          nullable: true
+        isLive:
+          type: integer
+          nullable: true
+        isFeatured:
+          type: integer
+          nullable: true
+        hasStream:
+          type: integer
+          nullable: true
+        series:
+          $ref: '#/components/schemas/TheSpikeEventSeries'
+        mapPool:
+          type: array
+          items:
+            type: string
+        prizes:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikePrize'
+        brackets:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeBracket'
+        teams:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeEventTeam'
+
+    TheSpikeEventSeries:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        slug:
+          type: string
+          nullable: true
+
+    TheSpikePrize:
+      type: object
+      properties:
+        place:
+          type: string
+          nullable: true
+        prize:
+          type: string
+          nullable: true
+        teams:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikePrizeTeam'
+
+    TheSpikePrizeTeam:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        slug:
+          type: string
+          nullable: true
+
+    TheSpikeBracket:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        rounds:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeBracketRound'
+
+    TheSpikeBracketRound:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeBracketMatch'
+
+    TheSpikeBracketMatch:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        teams:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeBracketMatchTeam'
+
+    TheSpikeBracketMatchTeam:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        score:
+          type: integer
+          nullable: true
+        isWinner:
+          type: boolean
+          nullable: true
+
+    TheSpikeEventTeam:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        slug:
+          type: string
+          nullable: true
+        logoUrl:
+          type: string
+          nullable: true
+        darkLogoUrl:
+          type: string
+          nullable: true
+        lightLogoUrl:
+          type: string
+          nullable: true
+        players:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikePlayerBasic'
+
+    TheSpikeMatch:
+      type: object
+      properties:
+        id:
+          type: integer
+        matchName:
+          type: string
+          nullable: true
+        bestOf:
+          type: integer
+          nullable: true
+        startTime:
+          type: string
+          nullable: true
+        isFinished:
+          type: integer
+          nullable: true
+        isLive:
+          type: integer
+          nullable: true
+        event:
+          $ref: '#/components/schemas/TheSpikeMatchEvent'
+        teams:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeMatchTeam'
+        maps:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeMap'
+        streams:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeStream'
+        votes:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/TheSpikeVote'
+        odds:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/TheSpikeOdd'
+        pastMatches:
+          $ref: '#/components/schemas/TheSpikePastMatches'
+        headToHead:
+          $ref: '#/components/schemas/TheSpikeHeadToHead'
+
+    TheSpikeMatchEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        slug:
+          type: string
+          nullable: true
+        logoUrl:
+          type: string
+          nullable: true
+
+    TheSpikeMatchTeam:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        slug:
+          type: string
+          nullable: true
+        score:
+          type: integer
+          nullable: true
+        players:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeMatchPlayer'
+        bestPlayer:
+          $ref: '#/components/schemas/TheSpikeMatchPlayer'
+        darkLogoUrl:
+          type: string
+          nullable: true
+        lightLogoUrl:
+          type: string
+          nullable: true
+
+    TheSpikeMatchPlayer:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        nickname:
+          type: string
+          nullable: true
+        slug:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+        countryCode:
+          type: string
+          nullable: true
+        agentThumbnail:
+          type: string
+          nullable: true
+        stats:
+          $ref: '#/components/schemas/TheSpikePlayerStats'
+
+    TheSpikePlayerStats:
+      type: object
+      properties:
+        rating:
+          type: number
+          nullable: true
+        acs:
+          type: number
+          nullable: true
+        kills:
+          type: integer
+          nullable: true
+        deaths:
+          type: integer
+          nullable: true
+        assists:
+          type: integer
+          nullable: true
+        firstKills:
+          type: integer
+          nullable: true
+        firstDeaths:
+          type: integer
+          nullable: true
+
+    TheSpikeMap:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        map:
+          $ref: '#/components/schemas/TheSpikeMapInfo'
+        pickTeamId:
+          type: integer
+          nullable: true
+        isDecider:
+          type: boolean
+          nullable: true
+        teams:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeMapTeam'
+
+    TheSpikeMapInfo:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        slug:
+          type: string
+          nullable: true
+        thumbnailUrl:
+          type: string
+          nullable: true
+
+    TheSpikeMapTeam:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        score:
+          type: integer
+          nullable: true
+        isWinner:
+          type: boolean
+          nullable: true
+        players:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeMapPlayer'
+
+    TheSpikeMapPlayer:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        nickname:
+          type: string
+          nullable: true
+        agent:
+          $ref: '#/components/schemas/TheSpikeAgent'
+        stats:
+          $ref: '#/components/schemas/TheSpikePlayerStats'
+
+    TheSpikeAgent:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        slug:
+          type: string
+          nullable: true
+        thumbnailUrl:
+          type: string
+          nullable: true
+
+    TheSpikeStream:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        url:
+          type: string
+          nullable: true
+        platform:
+          type: string
+          nullable: true
+        language:
+          type: string
+          nullable: true
+
+    TheSpikeVote:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        teamId:
+          type: integer
+          nullable: true
+        votes:
+          type: integer
+          nullable: true
+
+    TheSpikeOdd:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        teamId:
+          type: integer
+          nullable: true
+        odds:
+          type: number
+          nullable: true
+        bookmaker:
+          type: string
+          nullable: true
+
+    TheSpikePastMatches:
+      type: object
+      properties:
+        team1:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikePastMatch'
+        team2:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikePastMatch'
+
+    TheSpikePastMatch:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        startTime:
+          type: string
+          nullable: true
+        opponent:
+          $ref: '#/components/schemas/TheSpikeMatchTeam'
+        score:
+          type: integer
+          nullable: true
+        opponentScore:
+          type: integer
+          nullable: true
+        isWinner:
+          type: boolean
+          nullable: true
+
+    TheSpikeHeadToHead:
+      type: object
+      properties:
+        team1Wins:
+          type: integer
+          nullable: true
+        team2Wins:
+          type: integer
+          nullable: true
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeMatch'
+
+    TheSpikeTeam:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+        darkLogoUrl:
+          type: string
+          nullable: true
+        lightLogoUrl:
+          type: string
+          nullable: true
+        facebookUrl:
+          type: string
+          nullable: true
+        twitterUrl:
+          type: string
+          nullable: true
+        instagramUrl:
+          type: string
+          nullable: true
+        twitchUrl:
+          type: string
+          nullable: true
+        youtubeUrl:
+          type: string
+          nullable: true
+        websiteUrl:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+        countryCode:
+          type: string
+          nullable: true
+        rankingNo:
+          type: integer
+          nullable: true
+        totalWinnings:
+          type: integer
+          nullable: true
+        teamAchievements:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeAchievement'
+        pastPlayers:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikePastPlayer'
+        players:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeTeamPlayer'
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeMatch'
+
+    TheSpikeAchievement:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        event:
+          $ref: '#/components/schemas/TheSpikeEvent'
+        placement:
+          type: string
+          nullable: true
+        prize:
+          type: string
+          nullable: true
+        date:
+          type: string
+          nullable: true
+
+    TheSpikePastPlayer:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        nickname:
+          type: string
+          nullable: true
+        slug:
+          type: string
+          nullable: true
+        joined:
+          type: string
+          nullable: true
+        left:
+          type: string
+          nullable: true
+
+    TheSpikeTeamPlayer:
+      type: object
+      properties:
+        id:
+          type: integer
+        nickname:
+          type: string
+        slug:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        surname:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+        countryCode:
+          type: string
+          nullable: true
+        isCaptain:
+          type: boolean
+          nullable: true
+        role:
+          type: string
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        agents:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeAgent'
+        stats:
+          $ref: '#/components/schemas/TheSpikePlayerSeasonStats'
+
+    TheSpikePlayerSeasonStats:
+      type: object
+      properties:
+        rating:
+          type: number
+          nullable: true
+        acs:
+          type: number
+          nullable: true
+        kdRatio:
+          type: number
+          nullable: true
+        kast:
+          type: number
+          nullable: true
+        adr:
+          type: number
+          nullable: true
+        kpr:
+          type: number
+          nullable: true
+        apr:
+          type: number
+          nullable: true
+        fkpr:
+          type: number
+          nullable: true
+        fdpr:
+          type: number
+          nullable: true
+        hsPercentage:
+          type: number
+          nullable: true
+        clutches:
+          type: integer
+          nullable: true
+        clutchRounds:
+          type: integer
+          nullable: true
+        clutchPercentage:
+          type: number
+          nullable: true
+        rounds:
+          type: integer
+          nullable: true
+        maps:
+          type: integer
+          nullable: true
+
+    TheSpikeNewsResponse:
+      type: object
+      properties:
+        news:
+          $ref: '#/components/schemas/TheSpikeNewsData'
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeNewsCategory'
+
+    TheSpikeNewsData:
+      type: object
+      properties:
+        pageCount:
+          type: integer
+          nullable: true
+        news:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeNewsItem'
+        newsCount:
+          type: integer
+          nullable: true
+
+    TheSpikeNewsItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        metaTitle:
+          type: string
+          nullable: true
+        metaDescription:
+          type: string
+          nullable: true
+        bannerImage:
+          type: string
+          nullable: true
+        thumbnailImage:
+          type: string
+          nullable: true
+        publishedOn:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+        countryCode:
+          type: string
+          nullable: true
+        slug:
+          type: string
+          nullable: true
+        category:
+          $ref: '#/components/schemas/TheSpikeNewsCategory'
+        content:
+          type: string
+          nullable: true
+        author:
+          $ref: '#/components/schemas/TheSpikeNewsAuthor'
+
+    TheSpikeNewsCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        slug:
+          type: string
+          nullable: true
+
+    TheSpikeNewsAuthor:
+      type: object
+      properties:
+        id:
+          type: integer
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        avatar:
+          type: string
+          nullable: true
+
+    TheSpikeEventsResponse:
+      type: object
+      properties:
+        ongoing:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeEvent'
+        upcoming:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeEvent'
+
+    TheSpikeMatchesResponse:
+      type: object
+      properties:
+        live:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeMatch'
+        upcoming:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeMatch'
+        completed:
+          type: array
+          items:
+            $ref: '#/components/schemas/TheSpikeMatch'

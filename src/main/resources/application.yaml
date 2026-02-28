@@ -4,3 +4,6 @@ ktor:
   application:
     modules:
       - com.vlr.scrapper.ApplicationKt.module
+
+redis:
+  url: ${REDIS_URL:redis://localhost:6379}
